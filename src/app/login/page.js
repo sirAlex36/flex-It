@@ -1,121 +1,165 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { jwtDecode } from "jwt-decode";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 export default function Login() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    
+    setLoading(true);
+
     try {
-      const response = await fetch("http://localhost:3002/login", {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
+
+      const response = await fetch(`${API_URL}/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      
+
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
-        localStorage.setItem("token", data.token);
-        window.location.href = "/";
+        localStorage.setItem("token", data.access_token);
+
+        let decoded;
+        try {
+          decoded = jwtDecode(data.access_token);
+        } catch {
+          setError("Invalid token received from server.");
+          setLoading(false);
+          return;
+        }
+
+        // Redirect based on role
+        if (decoded.sub.role === "admin") {
+          router.push("/dashboard/admin");
+        } else {
+          router.push("/dashboard/user");
+        }
       } else {
-        setError("Invalid email or password");
+        setError(data.message || "Invalid email or password");
       }
     } catch (err) {
+      console.error(err);
       setError("Error logging in. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-50 flex items-center justify-center py-12 px-4 sm:px-0">
-        <div className="w-full max-w-md">
-          {/* Card Container */}
-          <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
-            {/* Header Gradient */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-10 text-white text-center">
-              <h1 className="text-3xl font-bold">Welcome Back</h1>
-              <p className="text-blue-100 mt-2">Sign in to your Flex-It account</p>
-            </div>
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="w-full max-w-md space-y-8">
+          <div className="text-center">
+            <h2 className="mt-6 text-3xl font-extrabold text-gray-900">Welcome Back</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Sign in to your <span className="font-semibold text-blue-600">Flex-It</span> account
+            </p>
+          </div>
 
-            {/* Form Container */}
-            <div className="px-8 py-10">
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-900 mb-3">Email Address</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition placeholder-gray-500"
-                    placeholder="your@email.com"
-                  />
-                </div>
-                
-                <div>
-                  <div className="flex justify-between items-center mb-3">
-                    <label className="block text-sm font-semibold text-gray-900">Password</label>
-                    <a href="#" className="text-sm text-blue-600 hover:text-blue-700 font-medium">Forgot?</a>
-                  </div>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition placeholder-gray-500"
-                    placeholder="••••••••"
-                  />
-                </div>
-
-                {error && (
-                  <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
-                    <p className="text-red-700 font-medium">{error}</p>
-                  </div>
-                )}
-                
-                <button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-lg hover:shadow-lg transition font-bold text-lg shadow-md"
-                >
-                  Sign In
-                </button>
-              </form>
-
-              {/* Divider */}
-              <div className="mt-8 relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">New to Flex-It?</span>
-                </div>
+          <div className="bg-white py-8 px-6 shadow-2xl rounded-3xl border border-gray-200">
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  Email address
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="you@example.com"
+                  className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
-              
-              <p className="text-center text-gray-600 mt-8 font-medium">
-                Don't have an account?{" "}
-                <a href="/sign-up" className="text-blue-600 hover:text-blue-700 font-bold underline">
-                  Create one here
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  className="mt-1 w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+                  <p className="text-red-700 font-medium">{error}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-md text-lg font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition ${
+                  loading ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                {loading ? (
+                  <>
+                    <svg
+                      className="animate-spin h-5 w-5 mr-3 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8H4z"
+                      ></path>
+                    </svg>
+                    Signing In...
+                  </>
+                ) : (
+                  "Sign In"
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                New to Flex-It?{" "}
+                <a
+                  href="/sign-up"
+                  className="font-medium text-blue-600 hover:text-blue-700 underline"
+                >
+                  Create an account
                 </a>
               </p>
             </div>
           </div>
 
-          {/* Trust Badges */}
-          <div className="mt-6 text-center text-sm text-gray-600">
-            <p className="flex items-center justify-center gap-2">
-              <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              Secure & encrypted
-            </p>
+          <div className="text-center text-sm text-gray-500 mt-4">
+            <p>Secure & encrypted login</p>
           </div>
         </div>
       </main>
