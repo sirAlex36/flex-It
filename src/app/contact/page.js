@@ -5,6 +5,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 export default function Contact() {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -27,7 +28,7 @@ export default function Contact() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:3002/contact", {
+      const response = await fetch(`${API_URL}/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),

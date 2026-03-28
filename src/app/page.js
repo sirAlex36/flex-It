@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 export default function Home() {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
   const [events, setEvents] = useState([]);
   const [search, setSearch] = useState("");
   const [filtered, setFiltered] = useState([]);
@@ -14,20 +15,20 @@ export default function Home() {
   const [verificationResult, setVerificationResult] = useState(null);
 
   useEffect(() => {
-    fetch("http://localhost:3002/events")
+    fetch(`${API_URL}/events`)
       .then((res) => res.json())
       .then((data) => {
         setEvents(data);
         setFiltered(data);
       })
       .catch((err) => console.error("Error fetching events:", err));
-  }, []);
+  }, [API_URL]);
 
   useEffect(() => {
     const results = events.filter(
       (event) =>
         event.name.toLowerCase().includes(search.toLowerCase()) ||
-        event.location.toLowerCase().includes(search.toLowerCase())
+        event.venue.toLowerCase().includes(search.toLowerCase())
     );
     setFiltered(results);
   }, [search, events]);
@@ -135,7 +136,7 @@ export default function Home() {
                   />
                   <div className="p-4">
                     <h3 className="font-semibold text-lg mb-1">{event.name}</h3>
-                    <p className="text-gray-500 text-sm mb-1">📍 {event.location}</p>
+                    <p className="text-gray-500 text-sm mb-1">📍 {event.venue}</p>
                     <p className="text-gray-500 text-sm mb-3">📅 {event.date}</p>
                     <Link href={`/event/${event.id}`}>
                       <button className="bg-blue-600 text-white px-4 py-2 rounded-lg w-full hover:bg-blue-700 transition text-sm font-semibold">

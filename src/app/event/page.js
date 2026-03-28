@@ -1,15 +1,40 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 export default function UpcomingEvents() {
+  const router = useRouter();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+
+  // ✅ FIXED: booking form state (this was missing)
+  const [bookingForm, setBookingForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    ticketType: "General",
+    quantity: 1,
+    paymentMethod: "card",
+    requests: "",
+    terms: false,
+  });
+
+  const ticketPrices = {
+    General: 1000,
+    VIP: 3000,
+    Premium: 5000,
+  };
 
   useEffect(() => {
-    fetch("http://localhost:3002/events")
+    fetch(`${API_URL}/events`)
       .then((res) => res.json())
       .then((data) => {
         setEvents(data);
@@ -19,65 +44,262 @@ export default function UpcomingEvents() {
         console.error("Error fetching events:", err);
         setLoading(false);
       });
-  }, []);
+  }, [API_URL]);
+
+  const handleBooking = (event) => {
+    setSelectedEvent(event);
+    setShowBookingModal(true);
+  };
+
+  // ✅ SAFE HANDLER (no event bugs)
+  const handleFormChange = (name, value, type = "text", checked = false) => {
+    setBookingForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!selectedEvent) {
+      alert("No event selected.");
+      return;
+    }
+
+    if (!bookingForm.terms) {
+      alert("Please accept terms.");
+      return;
+    }
+
+    const totalPrice =
+      ticketPrices[bookingForm.ticketType] *
+      Number(bookingForm.quantity);
+
+    const ticketData = {
+      ticket_type: bookingForm.ticketType,
+      price: totalPrice,
+      event_id: selectedEvent.id,
+      user_id: 1, // replace with auth later
+    };
+
+    try {
+      const response = await fetch(`${API_URL}/tickets`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(ticketData),
+      });
+
+      if (!response.ok) throw new Error("Booking failed");
+
+      const result = await response.json();
+
+      alert(`Booking successful! Ticket ID: ${result.id}`);
+
+      setShowBookingModal(false);
+
+      router.push(`/ticket/${result.id}`);
+
+      // reset form
+      setBookingForm({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phone: "",
+        ticketType: "General",
+        quantity: 1,
+        paymentMethod: "card",
+        requests: "",
+        terms: false,
+      });
+
+    } catch (error) {
+      console.error(error);
+      alert("Error booking ticket");
+    }
+  };
 
   return (
     <>
       <Header />
+
       <main className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          {/* Header */}
-          <div className="mb-12">
-            <h1 className="text-5xl font-bold mb-4">Upcoming Events</h1>
-            <p className="text-xl text-gray-600">Explore thousands of amazing events happening near you</p>
-          </div>
-          
+        <div className="max-w-7xl mx-auto px-4 py-16">
+          <h1 className="text-5xl font-bold mb-4">Upcoming Events</h1>
+
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
-                <p className="text-gray-600 font-medium">Loading events...</p>
-              </div>
-            </div>
+            <p>Loading...</p>
           ) : events.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid md:grid-cols-3 gap-6">
               {events.map((event) => (
-                <div key={event.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-2xl transition group border border-gray-100">
-                  <div className="relative overflow-hidden h-48 bg-gray-200">
-                    <img 
-                      src={event.image || "https://via.placeholder.com/300x200"} 
-                      alt={event.name}
-                      className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
-                    />
-                    <div className="absolute top-3 right-3 bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-                      LIVE
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    <h3 className="text-lg font-bold mb-2 text-gray-900">{event.name}</h3>
-                    <p className="text-gray-600 text-sm mb-2 flex items-center gap-2">
-                      <span>📍</span> {event.location}
-                    </p>
-                    <p className="text-gray-500 text-sm mb-4 flex items-center gap-2">
-                      <span>📅</span> {event.date}
-                    </p>
-                    <button className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-bold shadow-md">
-                      View Details →
-                    </button>
-                  </div>
+                <div key={event.id} className="bg-white p-4 rounded shadow">
+                  <h3 className="font-bold text-lg">{event.name}</h3>
+                  <p>{event.venue}</p>
+                  <p>{event.date}</p>
+
+                  <button
+                    onClick={() => handleBooking(event)}
+                    className="bg-blue-600 text-white px-4 py-2 mt-2 rounded"
+                  >
+                    Buy Ticket
+                  </button>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-16">
-              <div className="text-6xl mb-4">🎪</div>
-              <p className="text-gray-600 text-lg font-medium">No events found at the moment.</p>
-              <p className="text-gray-500 mt-2">Check back soon for amazing events!</p>
-            </div>
+            <p>No events found</p>
           )}
         </div>
       </main>
+
       <Footer />
+
+      {/* ✅ MODAL */}
+      {showBookingModal && selectedEvent && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+          <div className="bg-white p-6 rounded w-full max-w-lg">
+            <h2 className="text-xl font-bold mb-4">
+              {selectedEvent.name}
+            </h2>
+
+            <form onSubmit={handleFormSubmit} className="space-y-3">
+
+              <input
+                type="text"
+                name="firstName"
+                placeholder="First Name"
+                value={bookingForm.firstName}
+                onChange={(e) =>
+                  handleFormChange(e.target.name, e.target.value)
+                }
+                className="w-full border p-2"
+                required
+              />
+
+              <input
+                type="text"
+                name="lastName"
+                placeholder="Last Name"
+                value={bookingForm.lastName}
+                onChange={(e) =>
+                  handleFormChange(e.target.name, e.target.value)
+                }
+                className="w-full border p-2"
+                required
+              />
+
+              <input
+                type="email"
+                name="email"
+                placeholder="Email"
+                value={bookingForm.email}
+                onChange={(e) =>
+                  handleFormChange(e.target.name, e.target.value)
+                }
+                className="w-full border p-2"
+                required
+              />
+
+              <input
+                type="tel"
+                name="phone"
+                placeholder="Phone"
+                value={bookingForm.phone}
+                onChange={(e) =>
+                  handleFormChange(e.target.name, e.target.value)
+                }
+                className="w-full border p-2"
+                required
+              />
+
+              <select
+                name="ticketType"
+                value={bookingForm.ticketType}
+                onChange={(e) =>
+                  handleFormChange(e.target.name, e.target.value)
+                }
+                className="w-full border p-2"
+              >
+                <option value="General">
+                  General - Ksh {ticketPrices.General}
+                </option>
+                <option value="VIP">
+                  VIP - Ksh {ticketPrices.VIP}
+                </option>
+                <option value="Premium">
+                  Premium - Ksh {ticketPrices.Premium}
+                </option>
+              </select>
+
+              <input
+                type="number"
+                name="quantity"
+                value={bookingForm.quantity}
+                onChange={(e) =>
+                  handleFormChange(e.target.name, e.target.value)
+                }
+                className="w-full border p-2"
+                min="1"
+              />
+
+              <div className="bg-gray-100 p-3 rounded">
+                <p className="font-bold">
+                  Total: Ksh{" "}
+                  {ticketPrices[bookingForm.ticketType] *
+                    Number(bookingForm.quantity)}
+                </p>
+              </div>
+
+              <textarea
+                name="requests"
+                placeholder="Special requests"
+                value={bookingForm.requests}
+                onChange={(e) =>
+                  handleFormChange(e.target.name, e.target.value)
+                }
+                className="w-full border p-2"
+              />
+
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  name="terms"
+                  checked={bookingForm.terms}
+                  onChange={(e) =>
+                    handleFormChange(
+                      e.target.name,
+                      e.target.value,
+                      "checkbox",
+                      e.target.checked
+                    )
+                  }
+                />
+                Accept Terms
+              </label>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBookingModal(false)}
+                  className="bg-gray-400 px-4 py-2 rounded"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="bg-blue-600 text-white px-4 py-2 rounded"
+                >
+                  Confirm
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
