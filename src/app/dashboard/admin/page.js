@@ -1,356 +1,508 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { jwtDecode } from "jwt-decode";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import Link from "next/link";
 import {
-  CalendarDaysIcon,
+  Cog6ToothIcon,
+  LogOutIcon,
+  ChartBarIcon,
+  UsersIcon,
+  CalendarIcon,
   TicketIcon,
+  CreditCardIcon,
+  BellIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon,
   PlusIcon,
+  PencilIcon,
+  TrashIcon,
   EyeIcon,
-  TrashIcon
 } from "@heroicons/react/24/outline";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
+
+// Stat Card Component
+const StatCard = ({ icon: Icon, label, value, change, color = "blue" }) => {
+  const colorClasses = {
+    blue: "bg-blue-50 text-blue-600 border-blue-100",
+    green: "bg-green-50 text-green-600 border-green-100",
+    purple: "bg-purple-50 text-purple-600 border-purple-100",
+    orange: "bg-orange-50 text-orange-600 border-orange-100",
+  };
+
+  return (
+    <div className={`${colorClasses[color]} border rounded-2xl p-6 backdrop-blur-sm`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{label}</p>
+          <p className="text-3xl font-bold mt-2 text-gray-900">{value}</p>
+          {change && (
+            <p className={`text-sm mt-2 ${change > 0 ? "text-green-600" : "text-red-600"}`}>
+              {change > 0 ? "+" : ""}{change}% from last month
+            </p>
+          )}
+        </div>
+        <div className={`p-3 rounded-xl ${colorClasses[color]} bg-opacity-20`}>
+          <Icon className="w-8 h-8" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Data Table Component
+const DataTable = ({ columns, data, actions }) => {
+  return (
+    <div className="overflow-x-auto border border-gray-200 rounded-2xl">
+      <table className="w-full">
+        <thead>
+          <tr className="bg-gray-50 border-b border-gray-200">
+            {columns.map((col) => (
+              <th
+                key={col}
+                className="px-6 py-4 text-left text-sm font-semibold text-gray-700"
+              >
+                {col}
+              </th>
+            ))}
+            {actions && (
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
+                Actions
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row, idx) => (
+            <tr
+              key={idx}
+              className="border-b border-gray-100 hover:bg-gray-50 transition"
+            >
+              {columns.map((col) => (
+                <td key={col} className="px-6 py-4 text-sm text-gray-700">
+                  {row[col]}
+                </td>
+              ))}
+              {actions && (
+                <td className="px-6 py-4 text-sm">
+                  <div className="flex items-center gap-3">
+                    {actions.map((action, i) => (
+                      <button
+                        key={i}
+                        onClick={() => action.onClick(row)}
+                        className="text-gray-600 hover:text-gray-900 transition"
+                        title={action.label}
+                      >
+                        <action.icon className="w-5 h-5" />
+                      </button>
+                    ))}
+                  </div>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// Modal Component
+const Modal = ({ isOpen, title, children, onClose, onSubmit, submitLabel = "Save" }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 max-h-96 overflow-y-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition"
+          >
+            <XMarkIcon className="w-6 h-6" />
+          </button>
+        </div>
+        <div className="mb-6">{children}</div>
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-3 text-gray-700 border border-gray-300 rounded-lg font-medium hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSubmit}
+            className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+          >
+            {submitLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Alert Component
+const Alert = ({ type, message, onClose }) => {
+  const bgColor = type === "success" ? "bg-green-50" : "bg-red-50";
+  const borderColor = type === "success" ? "border-green-200" : "border-red-200";
+  const textColor = type === "success" ? "text-green-800" : "text-red-800";
+  const Icon = type === "success" ? CheckCircleIcon : ExclamationCircleIcon;
+
+  useEffect(() => {
+    const timer = setTimeout(onClose, 5000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className={`${bgColor} border ${borderColor} rounded-lg p-4 flex items-start gap-3`}>
+      <Icon className={`w-5 h-5 mt-0.5 ${type === "success" ? "text-green-600" : "text-red-600"}`} />
+      <p className={`text-sm ${textColor}`}>{message}</p>
+    </div>
+  );
+};
+
 export default function AdminDashboard() {
+  const { data: session, status } = useSession();
   const router = useRouter();
-  const [user, setUser] = useState(null);
   const [events, setEvents] = useState([]);
-  const [tickets, setTickets] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const [showEventModal, setShowEventModal] = useState(false);
-  const [eventForm, setEventForm] = useState({
-    id: null,
-    name: "",
-    date: "",
-    venue: "",
-    description: "",
-    image: "",
-  });
-  const [errorText, setErrorText] = useState("");
+  const [eventForm, setEventForm] = useState({ name: "", date: "", venue: "", description: "" });
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
-
+  // Protection - redirect if not admin
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
+    if (status === "unauthenticated") {
       router.push("/login");
-      return;
+    } else if (status === "authenticated" && session?.user?.role !== "admin") {
+      router.push("/dashboard/user");
     }
+  }, [status, session, router]);
 
-    try {
-      const decoded = jwtDecode(token);
-      if (decoded.sub?.role !== "admin") {
-        router.push("/login");
-        return;
-      }
-      setUser(decoded);
-    } catch (err) {
-      router.push("/login");
-    }
-  }, [router]);
-
+  // Fetch data from backend
   useEffect(() => {
-    if (user) {
-      fetchData();
+    if (session?.user?.id) {
+      fetchDashboardData();
     }
-  }, [user]);
+  }, [session]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchDashboardData = async () => {
     try {
-      const [eventsRes, ticketsRes] = await Promise.all([
-        fetch(`${API_URL}/events`),
-        fetch(`${API_URL}/tickets`),
+      setLoading(true);
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.accessToken}`,
+      };
+
+      const [eventsRes, usersRes, transactionsRes] = await Promise.all([
+        fetch(`${API_URL}/events`, { headers }),
+        fetch(`${API_URL}/users`, { headers }),
+        fetch(`${API_URL}/transactions`, { headers }),
       ]);
 
       if (eventsRes.ok) {
         const eventsData = await eventsRes.json();
-        setEvents(eventsData || []);
+        setEvents(Array.isArray(eventsData) ? eventsData : []);
       }
 
-      if (ticketsRes.ok) {
-        const ticketsData = await ticketsRes.json();
-        setTickets(ticketsData || []);
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        setUsers(Array.isArray(usersData) ? usersData : []);
       }
+
+      if (transactionsRes.ok) {
+        const transactionsData = await transactionsRes.json();
+        setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
+      }
+
+      setLoading(false);
     } catch (err) {
-      console.error("Error fetching data:", err);
-    } finally {
+      console.error("Error fetching dashboard data:", err);
+      setError("Failed to load dashboard data");
       setLoading(false);
     }
   };
 
-  const handleEventSave = async (e) => {
-    e.preventDefault();
-    const token = localStorage.getItem("token");
-    setErrorText("");
-
-    if (!eventForm.name || !eventForm.date || !eventForm.venue) {
-      setErrorText("Name, date, and venue are required.");
-      return;
-    }
-
+  const handleCreateEvent = async () => {
     try {
-      const method = eventForm.id ? "PUT" : "POST";
-      const endpoint = eventForm.id ? `${API_URL}/events/${eventForm.id}` : `${API_URL}/events`;
-
-      const response = await fetch(endpoint, {
-        method,
+      const response = await fetch(`${API_URL}/events`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.accessToken}`,
         },
         body: JSON.stringify(eventForm),
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to save event.");
+      if (response.ok) {
+        setSuccess("Event created successfully!");
+        setShowEventModal(false);
+        setEventForm({ name: "", date: "", venue: "", description: "" });
+        fetchDashboardData();
+      } else {
+        setError("Failed to create event");
       }
-
-      setShowEventModal(false);
-      setEventForm({ id: null, name: "", date: "", venue: "", description: "", image: "" });
-      await fetchData();
     } catch (err) {
-      setErrorText(err.message);
+      console.error("Error creating event:", err);
+      setError("Error creating event");
     }
   };
 
-  const handleDeleteEvent = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this event?")) return;
-    const token = localStorage.getItem("token");
-    try {
-      const response = await fetch(`${API_URL}/events/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Delete failed.");
-      }
-      await fetchData();
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Failed to delete event.");
-    }
-  };
-
-  const openEditModal = (event) => {
-    setEventForm({
-      id: event.id,
-      name: event.name,
-      date: event.date,
-      venue: event.venue,
-      description: event.description || "",
-      image: event.image || "",
-    });
-    setShowEventModal(true);
-  };
-
-  const upcomingEvents = events.filter((event) => new Date(event.date) >= new Date());
-
-  if (loading) {
+  if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-blue-50">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading admin dashboard...</p>
+          <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading your dashboard...</p>
         </div>
       </div>
     );
   }
 
+  if (status === "unauthenticated") {
+    return null;
+  }
+
+  // Calculate stats
+  const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+  const totalUsers = users.length;
+  const totalEvents = events.length;
+  const successfulTransactions = transactions.filter((t) => t.status === "success").length;
+
   return (
-    <>
-      <Header />
-      <main className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-gray-600 mt-1">You are logged in as {user?.sub?.name || "Admin"}.</p>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100">
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 backdrop-blur-xl bg-opacity-80">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-lg">F</span>
             </div>
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Flex-It Admin</h1>
+              <p className="text-xs text-gray-500">Dashboard</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button className="relative p-2 text-gray-600 hover:text-gray-900 transition">
+              <BellIcon className="w-6 h-6" />
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+            </button>
+
+            <div className="h-10 w-px bg-gray-200"></div>
+
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">{session?.user?.name || "Admin"}</p>
+                <p className="text-xs text-gray-500">Admin</p>
+              </div>
+              <button
+                onClick={() => signOut({ redirect: true, callbackUrl: "/login" })}
+                className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+                title="Sign out"
+              >
+                <LogOutIcon className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {/* Alerts */}
+        {error && <Alert type="error" message={error} onClose={() => setError("")} />}
+        {success && <Alert type="success" message={success} onClose={() => setSuccess("")} />}
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-8 border-b border-gray-200">
+          {[
+            { id: "overview", label: "Overview", icon: ChartBarIcon },
+            { id: "events", label: "Events", icon: CalendarIcon },
+            { id: "users", label: "Users", icon: UsersIcon },
+            { id: "transactions", label: "Transactions", icon: CreditCardIcon },
+          ].map((tab) => (
             <button
-              onClick={() => { setShowEventModal(true); setEventForm({ id: null, name: "", date: "", venue: "", description: "", image: "" }); setErrorText(""); }}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-3 font-medium transition border-b-2 ${
+                activeTab === tab.id
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-600 hover:text-gray-900"
+              }`}
             >
-              <PlusIcon className="h-4 w-4" /> Add Event
+              <tab.icon className="w-5 h-5" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Overview Tab */}
+        {activeTab === "overview" && (
+          <div className="space-y-8">
+            {/* Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <StatCard icon={CalendarIcon} label="Total Events" value={totalEvents} color="blue" />
+              <StatCard icon={UsersIcon} label="Total Users" value={totalUsers} color="green" />
+              <StatCard
+                icon={CreditCardIcon}
+                label="Total Revenue"
+                value={`$${(totalRevenue / 100).toFixed(2)}`}
+                color="purple"
+              />
+              <StatCard
+                icon={CheckCircleIcon}
+                label="Transactions"
+                value={successfulTransactions}
+                color="orange"
+              />
+            </div>
+
+            {/* Quick Actions */}
+            <button
+              onClick={() => setShowEventModal(true)}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium hover:shadow-lg transition"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Create Event
             </button>
           </div>
+        )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-              <p className="text-xs font-medium text-gray-500 uppercase">Total Events</p>
-              <p className="text-3xl font-bold text-gray-900">{events.length}</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-              <p className="text-xs font-medium text-gray-500 uppercase">Upcoming Events</p>
-              <p className="text-3xl font-bold text-gray-900">{upcomingEvents.length}</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
-              <p className="text-xs font-medium text-gray-500 uppercase">Total Tickets</p>
-              <p className="text-3xl font-bold text-gray-900">{tickets.length}</p>
-            </div>
-          </div>
-
-          <div className="mb-6 flex items-center gap-3">
-            {['overview', 'events', 'tickets'].map((tab) => (
+        {/* Events Tab */}
+        {activeTab === "events" && (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">Events</h2>
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium ${activeTab === tab ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}>
-                {tab[0].toUpperCase() + tab.slice(1)}
+                onClick={() => setShowEventModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+              >
+                <PlusIcon className="w-5 h-5" />
+                New Event
               </button>
-            ))}
+            </div>
+
+            {events.length > 0 ? (
+              <DataTable
+                columns={["id", "name", "date", "venue"]}
+                data={events.map((e) => ({
+                  id: e.id,
+                  name: e.name,
+                  date: new Date(e.date).toLocaleDateString(),
+                  venue: e.venue,
+                }))}
+                actions={[
+                  { label: "View", icon: EyeIcon, onClick: (row) => console.log(row) },
+                  { label: "Edit", icon: PencilIcon, onClick: (row) => console.log(row) },
+                  { label: "Delete", icon: TrashIcon, onClick: (row) => console.log(row) },
+                ]}
+              />
+            ) : (
+              <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                <CalendarIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600">No events yet. Create your first event!</p>
+              </div>
+            )}
           </div>
+        )}
 
-          {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-900">Recent Events</h2>
-                <div className="mt-4 space-y-3">
-                  {events.slice(0, 3).map((event) => (
-                    <article key={event.id} className="flex items-start gap-3">
-                      <img
-                        src={event.image || 'https://via.placeholder.com/80x80?text=Poster'}
-                        alt={event.name}
-                        className="h-16 w-16 object-cover rounded-md"
-                        onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/80x80?text=Poster'; }}
-                      />
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{event.name}</h3>
-                        <p className="text-sm text-gray-600">{event.date} • {event.venue}</p>
-                      </div>
-                    </article>
-                  ))}
-                  {events.length === 0 && <p className="text-sm text-gray-500">No event has been created yet.</p>}
-                </div>
+        {/* Users Tab */}
+        {activeTab === "users" && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900">Users</h2>
+            {users.length > 0 ? (
+              <DataTable
+                columns={["id", "name", "email", "role"]}
+                data={users.map((u) => ({
+                  id: u.id,
+                  name: u.name,
+                  email: u.email,
+                  role: u.role || "user",
+                }))}
+              />
+            ) : (
+              <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                <UsersIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600">No users yet</p>
               </div>
-              <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
-                <h2 className="text-lg font-semibold text-gray-900">Recent Tickets</h2>
-                <div className="mt-4 space-y-2 text-gray-700">
-                  {tickets.slice(-5).reverse().map((ticket) => (
-                    <div key={ticket.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-md">
-                      <div>
-                        <p className="text-sm font-medium">Ticket #{ticket.id}</p>
-                        <p className="text-xs text-gray-500">Event {ticket.event_id} • User {ticket.user_id}</p>
-                      </div>
-                      <p className="text-sm font-bold text-green-600">${ticket.price}</p>
-                    </div>
-                  ))}
-                  {tickets.length === 0 && <p className="text-sm text-gray-500">No tickets sold yet.</p>}
-                </div>
+            )}
+          </div>
+        )}
+
+        {/* Transactions Tab */}
+        {activeTab === "transactions" && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900">Transactions</h2>
+            {transactions.length > 0 ? (
+              <DataTable
+                columns={["id", "amount", "status", "payment_method"]}
+                data={transactions.map((t) => ({
+                  id: t.id,
+                  amount: `$${(t.amount / 100).toFixed(2)}`,
+                  status: t.status,
+                  payment_method: t.payment_method,
+                }))}
+              />
+            ) : (
+              <div className="text-center py-12 bg-gray-50 rounded-2xl">
+                <CreditCardIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <p className="text-gray-600">No transactions yet</p>
               </div>
-            </div>
-          )}
-
-          {activeTab === 'events' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {events.length === 0 ? (
-                <div className="col-span-full p-10 border border-dashed border-gray-300 rounded-xl text-center text-gray-500">No events available. Create one using Add Event.</div>
-              ) : events.map((event) => (
-                <article key={event.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                  <img
-                    src={event.image || 'https://via.placeholder.com/420x220?text=Poster+Queued'}
-                    alt={event.name}
-                    className="h-44 w-full object-cover"
-                    onError={(e) => { e.target.onerror = null; e.target.src = 'https://via.placeholder.com/420x220?text=Poster+Queued'; }}
-                  />
-                  <div className="p-5">
-                    <h3 className="text-lg font-semibold text-gray-900">{event.name}</h3>
-                    <p className="text-sm text-gray-500 mt-1">{event.date} • {event.venue}</p>
-                    <p className="text-sm text-gray-600 mt-2 line-clamp-3">{event.description || 'No description provided yet.'}</p>
-                    <div className="mt-4 flex items-center gap-2">
-                      <button onClick={() => openEditModal(event)} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-blue-600 border border-blue-200 rounded-md hover:bg-blue-50">
-                        <EyeIcon className="h-4 w-4" /> Edit
-                      </button>
-                      <button onClick={() => handleDeleteEvent(event.id)} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-md hover:bg-red-50">
-                        <TrashIcon className="h-4 w-4" /> Delete
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-
-          {activeTab === 'tickets' && (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket #</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-100">
-                  {tickets.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500">No tickets found.</td>
-                    </tr>
-                  )}
-                  {tickets.map((ticket) => (
-                    <tr key={ticket.id}>
-                      <td className="px-6 py-3 text-sm text-gray-700">{ticket.id}</td>
-                      <td className="px-6 py-3 text-sm text-gray-700">{ticket.type}</td>
-                      <td className="px-6 py-3 text-sm text-gray-700">${ticket.price}</td>
-                      <td className="px-6 py-3 text-sm text-gray-700">{ticket.user_id}</td>
-                      <td className="px-6 py-3 text-sm text-gray-700">{ticket.event_id}</td>
-                      <td className="px-6 py-3 text-sm text-gray-500">{new Date(ticket.created_at || Date.now()).toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {showEventModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-xl rounded-xl shadow-xl overflow-hidden">
-                <div className="border-b border-gray-200 px-5 py-4 flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-gray-900">{eventForm.id ? 'Edit Event' : 'Add New Event'}</h2>
-                  <button onClick={() => { setShowEventModal(false); setEventForm({ id: null, name: '', date: '', venue: '', description: '', image: '' }); setErrorText(''); }} className="text-gray-500 hover:text-gray-700">✕</button>
-                </div>
-                <form onSubmit={handleEventSave} className="p-5 space-y-4">
-                  {errorText && <p className="text-sm text-red-600">{errorText}</p>}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Name</label>
-                      <input value={eventForm.name} onChange={(e) => setEventForm({ ...eventForm, name: e.target.value })} required className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Date</label>
-                      <input type="date" value={eventForm.date} onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })} required className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Venue</label>
-                    <input value={eventForm.venue} onChange={(e) => setEventForm({ ...eventForm, venue: e.target.value })} required className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Image URL</label>
-                    <input type="url" value={eventForm.image} onChange={(e) => setEventForm({ ...eventForm, image: e.target.value })} className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500" placeholder="https://..." />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Description</label>
-                    <textarea value={eventForm.description} onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })} rows={4} className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500" />
-                  </div>
-                  <div className="flex justify-end gap-3">
-                    <button type="button" onClick={() => setShowEventModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</button>
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Event</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </main>
-      <Footer />
-    </>
+
+      {/* Create Event Modal */}
+      <Modal
+        isOpen={showEventModal}
+        title="Create New Event"
+        onClose={() => setShowEventModal(false)}
+        onSubmit={handleCreateEvent}
+        submitLabel="Create Event"
+      >
+        <div className="space-y-4">
+          <input
+            type="text"
+            placeholder="Event name"
+            value={eventForm.name}
+            onChange={(e) => setEventForm({ ...eventForm, name: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="date"
+            value={eventForm.date}
+            onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            type="text"
+            placeholder="Venue"
+            value={eventForm.venue}
+            onChange={(e) => setEventForm({ ...eventForm, venue: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <textarea
+            placeholder="Description"
+            value={eventForm.description}
+            onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            rows="3"
+          />
+        </div>
+      </Modal>
+    </div>
   );
 }
