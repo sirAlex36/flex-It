@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { jwtDecode } from "jwt-decode";
+import { Calendar, MapPin, Clock, Users, CreditCard, Shield, CheckCircle, ArrowLeft, Ticket, Sparkles } from "lucide-react";
 
 const DEFAULT_CAPACITY_BY_TIER = {
   vip: 50,
@@ -13,29 +13,23 @@ const DEFAULT_CAPACITY_BY_TIER = {
 
 const getTierCapacity = (ticketType) => {
   if (!ticketType) return 150;
-  const key = ticketType.trim().toLowerCase();
-  if (key.includes("vip")) return DEFAULT_CAPACITY_BY_TIER.vip;
-  if (key.includes("premium")) return DEFAULT_CAPACITY_BY_TIER.premium;
-  if (key.includes("general")) return DEFAULT_CAPACITY_BY_TIER.general;
-  if (key.includes("standard")) return DEFAULT_CAPACITY_BY_TIER.standard;
+  const key = ticketType.toLowerCase();
+  if (key.includes("vip")) return 50;
+  if (key.includes("premium")) return 100;
+  if (key.includes("general")) return 200;
+  if (key.includes("standard")) return 180;
   return 150;
 };
 
 export default function EventDetailsPage() {
-  const params = useParams();
+  const { id } = useParams();
   const router = useRouter();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
   const [event, setEvent] = useState(null);
   const [tickets, setTickets] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [availability, setAvailability] = useState({
-    total: 0,
-    sold: 0,
-    remaining: 0,
-    perTier: {},
-    soldPercentage: 0,
-  });
+  const [bookingConfirmation, setBookingConfirmation] = useState(null);
+  const [selectedTierId, setSelectedTierId] = useState(null);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -44,500 +38,442 @@ export default function EventDetailsPage() {
     phone: "",
     ticketType: "",
     quantity: 1,
-    paymentMethod: "",
-    requests: "",
+    paymentMethod: "card",
     terms: false,
   });
 
+  const [availability, setAvailability] = useState({ perTier: {} });
   const [isProcessing, setIsProcessing] = useState(false);
   const [mpesaStatus, setMpesaStatus] = useState("");
-  const [bookingConfirmation, setBookingConfirmation] = useState(null);
-
-  // Get user from JWT token
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        setCurrentUser({
-          id: decoded.sub,  // Fixed: use 'sub' which is the user ID
-          role: decoded.role
-        });
-      } catch (err) {
-        console.error("Invalid token:", err);
-      }
-    }
-  }, []);
-
-  const fetchEvent = async () => {
-    try {
-      const res = await fetch(`${API_URL}/events/${params.id}`);
-      if (!res.ok) throw new Error("Event fetch failed");
-      const data = await res.json();
-      setEvent(data);
-    } catch (error) {
-      console.error(error);
-      setEvent(null);
-    }
-  };
-
-  const fetchTickets = async () => {
-    try {
-      const res = await fetch(`${API_URL}/tickets`);
-      if (!res.ok) throw new Error("Tickets fetch failed");
-      const allTickets = await res.json();
-      const eventTickets = allTickets.filter((t) => Number(t.event_id || t.eventId || t.event_id) === Number(params.id));
-      setTickets(eventTickets);
-    } catch (error) {
-      console.error(error);
-      setTickets([]);
-    }
-  };
 
   useEffect(() => {
-    if (!params.id) return;
-    fetchEvent();
-    fetchTickets();
-  }, [params.id]);
+    fetch(`${API_URL}/events/${id}`)
+      .then((r) => r.json())
+      .then(setEvent);
 
-  useEffect(() => {
-    if (!params.id) return;
-    const interval = setInterval(() => {
-      fetchEvent();
-      fetchTickets();
-    }, 9000);
-
-    return () => clearInterval(interval);
-  }, [params.id]);
+    fetch(`${API_URL}/tickets`)
+      .then((r) => r.json())
+      .then((data) =>
+        setTickets(data.filter((t) => Number(t.event_id) === Number(id)))
+      );
+  }, [id]);
 
   useEffect(() => {
     if (!event) return;
 
-    const tierStats = {};
-    event.ticket_prices?.forEach((tier) => {
-      tierStats[tier.ticket_type] = {
+    const stats = {};
+    event.ticket_prices?.forEach((t) => {
+      stats[t.ticket_type] = {
         sold: 0,
-        capacity: getTierCapacity(tier.ticket_type),
+        capacity: getTierCapacity(t.ticket_type),
       };
     });
 
-    let totalPurchased = 0;
-    tickets.forEach((ticket) => {
-      const type = ticket.ticket_type || ticket.type;
-      if (!tierStats[type]) {
-        tierStats[type] = {
-          sold: 0,
-          capacity: getTierCapacity(type),
-        };
+    tickets.forEach((t) => {
+      if (stats[t.ticket_type]) {
+        stats[t.ticket_type].sold++;
       }
-      tierStats[type].sold += 1;
-      totalPurchased += 1;
     });
 
-    const totalCapacity = Object.values(tierStats).reduce((sum, tier) => sum + tier.capacity, 0);
-    const remaining = Math.max(0, totalCapacity - totalPurchased);
-
-    setAvailability({
-      total: totalCapacity,
-      sold: totalPurchased,
-      remaining,
-      perTier: tierStats,
-      soldPercentage: totalCapacity ? Math.round((totalPurchased / totalCapacity) * 100) : 0,
-    });
+    setAvailability({ perTier: stats });
   }, [event, tickets]);
 
-  if (!event) {
+  const handleQuantityChange = (delta) => {
+    const newQuantity = formData.quantity + delta;
+    if (newQuantity >= 1 && newQuantity <= 10) {
+      setFormData({ ...formData, quantity: newQuantity });
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.ticketType) {
+      alert("Please select a ticket type");
+      return;
+    }
+    if (!formData.firstName || !formData.lastName) {
+      alert("Please enter your full name");
+      return;
+    }
+    if (!formData.email) {
+      alert("Please enter your email");
+      return;
+    }
+    if (!formData.phone) {
+      alert("Please enter your phone number");
+      return;
+    }
+    if (!formData.terms) {
+      alert("Please accept the terms and conditions");
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      const res = await fetch(`${API_URL}/tickets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: id,
+          ticket_type: formData.ticketType,
+          quantity: formData.quantity,
+          email: formData.email,
+          phone: formData.phone,
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+        }),
+      });
+
+      const data = await res.json();
+
+      setBookingConfirmation({
+        id: data.id,
+        amount: data.price * formData.quantity,
+        ticketType: formData.ticketType,
+        quantity: formData.quantity,
+        eventName: event?.name,
+      });
+    } catch (err) {
+      console.error(err);
+      alert("Booking failed. Please try again.");
+    }
+
+    setIsProcessing(false);
+  };
+
+  const selected = event?.ticket_prices?.find(
+    (t) => t.ticket_type === formData.ticketType
+  );
+
+  const total = selected ? selected.price * formData.quantity : 0;
+  const availableTickets = formData.ticketType && availability.perTier[formData.ticketType] 
+    ? availability.perTier[formData.ticketType].capacity - availability.perTier[formData.ticketType].sold
+    : 0;
+
+  // Premium Confirmation Screen
+  if (bookingConfirmation) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading event details...</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center px-4">
+        <div className="relative max-w-md w-full">
+          {/* Animated background effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-3xl blur-3xl"></div>
+          
+          <div className="relative bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 text-center shadow-2xl">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center justify-center">
+              <CheckCircle className="w-10 h-10 text-white" />
+            </div>
+            
+            <h1 className="text-3xl font-bold text-white mb-2">Booking Confirmed!</h1>
+            <p className="text-gray-300 mb-6">Your tickets have been reserved</p>
+            
+            <div className="bg-white/5 rounded-2xl p-4 mb-6 space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Event</span>
+                <span className="text-white font-medium">{bookingConfirmation.eventName}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Ticket Type</span>
+                <span className="text-white font-medium capitalize">{bookingConfirmation.ticketType}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Quantity</span>
+                <span className="text-white font-medium">{bookingConfirmation.quantity}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-400">Ticket ID</span>
+                <span className="text-white font-mono text-xs">#{bookingConfirmation.id}</span>
+              </div>
+              <div className="border-t border-white/10 pt-3 flex justify-between">
+                <span className="text-gray-400">Total Paid</span>
+                <span className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
+                  Ksh {bookingConfirmation.amount.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => router.push("/event")}
+                className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-semibold px-6 py-3 rounded-xl hover:shadow-lg transition-all"
+              >
+                Browse More Events
+              </button>
+              <button
+                onClick={() => window.print()}
+                className="w-full bg-white/10 text-white px-6 py-3 rounded-xl hover:bg-white/20 transition-all"
+              >
+                Download Ticket
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  const handleChange = (e) => {
-    const { id, value, type, checked } = e.target;
-    if (id === "ticketType") {
-      setFormData((prev) => ({ ...prev, ticketType: value, quantity: 1 }));
-      setMpesaStatus("");
-      return;
-    }
-    if (id === "quantity") {
-      setFormData({ ...formData, [id]: Math.max(1, parseInt(value) || 1) });
-      return;
-    }
-    setFormData({
-      ...formData,
-      [id]: type === "checkbox" ? checked : value,
-    });
-  };
-
-  const handleTicketCardClick = (ticketType) => {
-    setFormData({
-      ...formData,
-      ticketType,
-      quantity: 1,
-    });
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const chosenTier = event.ticket_prices?.find((tier) => tier.ticket_type === formData.ticketType);
-    if (!chosenTier) {
-      return alert("Please pick a ticket tier before checkout.");
-    }
-
-    const perTier = availability.perTier[formData.ticketType] || { sold: 0, capacity: getTierCapacity(formData.ticketType) };
-    const remaining = perTier.capacity - perTier.sold;
-    if (formData.quantity > remaining) {
-      return alert(`Only ${remaining} tickets remain for ${formData.ticketType}. Please reduce quantity.`);
-    }
-
-    setIsProcessing(true);
-    setMpesaStatus("Processing...");
-
-    const payload = {
-      event_id: Number(params.id),
-      ticket_type: chosenTier.ticket_type,
-      payment_method: formData.paymentMethod,
-      first_name: formData.firstName,
-      last_name: formData.lastName,
-      email: formData.email,
-      phone: formData.phone,
-      requests: formData.requests,
-      quantity: formData.quantity,
-    };
-
-    try {
-      // Get token for authentication
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-      };
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-
-      // Step 1: Create the ticket
-      const ticketRes = await fetch(`${API_URL}/tickets`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-
-      if (!ticketRes.ok) throw new Error("Ticket creation failed");
-      const ticketData = await ticketRes.json();
-      const ticketId = ticketData.id;
-      const actualPrice = ticketData.price;
-      const totalAmount = actualPrice * formData.quantity;
-
-      // Step 2: Trigger M-Pesa STK Push if selected
-      if (formData.paymentMethod === "mpesa") {
-        setMpesaStatus("Sending M-Pesa prompt...");
-        const mpesaRes = await fetch(`${API_URL}/mpesa/stk-push`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            phone: formData.phone,
-            amount: totalAmount,
-            ticket_id: ticketId,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-          }),
-        });
-
-        if (mpesaRes.ok) {
-          const mpesaData = await mpesaRes.json();
-          setMpesaStatus(`STK Push sent! Check phone (ref: ${mpesaData.request_id || "pending"})`);
-        } else {
-          setMpesaStatus("STK Push initiated (demo mode)");
-        }
-      }
-
-      // Step 3: Generate QR code
-      setMpesaStatus("Generating QR code...");
-      const qrRes = await fetch(`${API_URL}/tickets/${ticketId}/qr-code`, {
-        method: "GET",
-      });
-      let qrCode = null;
-      if (qrRes.ok) {
-        const qrData = await qrRes.json();
-        qrCode = qrData.qr_code;
-      }
-
-      // Step 4: Send email confirmation
-      setMpesaStatus("Sending confirmation email...");
-      const emailRes = await fetch(`${API_URL}/tickets/${ticketId}/send-confirmation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: formData.email,
-          qr_code: qrCode,
-        }),
-      });
-
-      if (emailRes.ok) {
-        setMpesaStatus("Email sent!");
-      }
-
-      // Set booking confirmation
-      setBookingConfirmation({
-        ticketId,
-        qrCode,
-        totalAmount: totalAmount,
-        ticketType: chosenTier.ticket_type,
-      });
-
-      setMpesaStatus("✅ Booking complete!");
-      fetchTickets();
-    } catch (err) {
-      console.error(err);
-      setMpesaStatus(`❌ Error: ${err.message}`);
-      setIsProcessing(false);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const selectedTierObj = event.ticket_prices?.find((tier) => tier.ticket_type === formData.ticketType);
-  const selectedTierRemaining = selectedTierObj
-    ? Math.max((getTierCapacity(selectedTierObj.ticket_type) || 0) - (availability.perTier[selectedTierObj.ticket_type]?.sold || 0), 0)
-    : 0;
-  
-  // Calculate live total
-  const totalAmount = selectedTierObj ? selectedTierObj.price * formData.quantity : 0;
-
-  // Show booking confirmation modal
-  if (bookingConfirmation) {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center py-12 px-4">
-        <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md text-center">
-          <div className="text-5xl mb-4">✅</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Booking Confirmed!</h1>
-          <p className="text-gray-600 mb-6">Your tickets have been secured and confirmation sent to your email.</p>
-          
-          {bookingConfirmation.qrCode && (
-            <>
-              <div className="bg-gray-100 p-4 rounded-lg mb-6 inline-block">
-                <img src={bookingConfirmation.qrCode} alt="QR Code" className="w-48 h-48" />
-              </div>
-              <p className="text-sm text-gray-500 mb-4">Scan at event entry</p>
-            </>
-          )}
-          
-          <div className="bg-slate-50 rounded-xl p-4 mb-6 text-left">
-            <p className="text-sm text-gray-600"><strong>Ticket Type:</strong> {bookingConfirmation.ticketType}</p>
-            <p className="text-sm text-gray-600"><strong>Total:</strong> Ksh {bookingConfirmation.totalAmount.toLocaleString()}</p>
-            <p className="text-sm text-gray-600"><strong>Ticket ID:</strong> #{bookingConfirmation.ticketId}</p>
-          </div>
-          
-          <button
-            onClick={() => {
-              setBookingConfirmation(null);
-              router.push("/event");
-            }}
-            className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700 transition"
-          >
-            Back to Events
-          </button>
-        </div>
-      </main>
-    );
-  }
+  if (!event) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="animate-pulse flex flex-col items-center">
+        <div className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-white mt-4">Loading event details...</p>
+      </div>
+    </div>
+  );
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 py-12 px-4">
-      <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-8">
+    <main className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
+      {/* Hero Section */}
+      <div className="relative h-[50vh] overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent z-10"></div>
+        <img
+          src={event.image}
+          alt={event.name}
+          className="w-full h-full object-cover"
+        />
+        <button
+          onClick={() => router.back()}
+          className="absolute top-6 left-6 z-20 bg-black/50 backdrop-blur-md text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-black/70 transition-all"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back
+        </button>
+      </div>
 
-        {/* LEFT: EVENT + TICKETS */}
-        <section className="lg:col-span-3 space-y-6">
-
-          {/* Event Card */}
-          <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-            <img
-              src={event.image || "https://via.placeholder.com/900x400"}
-              className="w-full h-64 object-cover"
-            />
-
-            <div className="p-6 space-y-3">
-              <h1 className="text-3xl font-bold text-gray-900">
-                {event.name}
-              </h1>
-
-              <p className="text-gray-500 text-sm">
-                📍 {event.venue} • 📅 {event.date}
-              </p>
-
-              <p className="text-gray-600 text-sm leading-relaxed">
-                {event.description}
-              </p>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 relative z-20 pb-20">
+        <div className="grid lg:grid-cols-3 gap-8">
+          {/* LEFT COLUMN - Event Info */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Event Header */}
+            <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
+              <h1 className="text-4xl font-bold text-white mb-4">{event.name}</h1>
+              <div className="flex flex-wrap gap-4 text-gray-300">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-yellow-400" />
+                  <span>March 15, 2024</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-yellow-400" />
+                  <span>7:00 PM</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-yellow-400" />
+                  <span>Nairobi, Kenya</span>
+                </div>
+              </div>
+              <p className="text-gray-300 mt-4 leading-relaxed">{event.description}</p>
             </div>
-          </div>
 
-          {/* Ticket Selection */}
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <h2 className="text-xl font-semibold mb-4">
-              Select Ticket
-            </h2>
+            {/* Ticket Tiers */}
+            <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
+              <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <Ticket className="w-5 h-5 text-yellow-400" />
+                Select Your Ticket
+              </h2>
+              <div className="space-y-3">
+                {event.ticket_prices.map((tier) => {
+                  const isSelected = formData.ticketType === tier.ticket_type;
+                  const available = availability.perTier[tier.ticket_type]
+                    ? availability.perTier[tier.ticket_type].capacity - availability.perTier[tier.ticket_type].sold
+                    : 0;
+                  const isSoldOut = available === 0;
 
-            <div className="space-y-3">
-              {event.ticket_prices?.map((tier) => {
-                const sold = availability.perTier[tier.ticket_type]?.sold || 0;
-                const capacity = getTierCapacity(tier.ticket_type);
-                const remainingTier = Math.max(capacity - sold, 0);
-                const isSelected = formData.ticketType === tier.ticket_type;
-                const isSoldOut = remainingTier === 0;
-
-                return (
-                  <button
-                    key={tier.id}
-                    onClick={() => handleTicketCardClick(tier.ticket_type)}
-                    disabled={isSoldOut}
-                    className={`w-full flex justify-between items-center p-4 rounded-xl border transition ${
-                      isSoldOut 
-                        ? "opacity-50 cursor-not-allowed border-gray-200 bg-gray-50"
-                        : isSelected
-                        ? "border-black bg-black text-white"
-                        : "border-gray-200 hover:border-black"
-                    }`}
-                  >
-                    <div>
-                      <p className="font-semibold">
-                        {tier.ticket_type}
-                      </p>
-                      <p className="text-xs opacity-70">
-                        {isSoldOut ? "Sold out" : `${remainingTier} left`}
-                      </p>
+                  return (
+                    <div
+                      key={tier.id}
+                      onClick={() => !isSoldOut && setFormData({ ...formData, ticketType: tier.ticket_type, quantity: 1 })}
+                      className={`relative group cursor-pointer transition-all duration-300 rounded-xl p-4 ${
+                        isSelected
+                          ? "bg-gradient-to-r from-yellow-400 to-orange-500 shadow-lg shadow-yellow-500/25"
+                          : isSoldOut
+                          ? "bg-white/5 opacity-50 cursor-not-allowed"
+                          : "bg-white/5 hover:bg-white/10 border border-white/10"
+                      }`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h3 className={`font-bold text-lg ${isSelected ? "text-black" : "text-white"}`}>
+                            {tier.ticket_type.toUpperCase()}
+                          </h3>
+                          <p className={`text-sm ${isSelected ? "text-black/70" : "text-gray-400"}`}>
+                            {available} tickets left
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-2xl font-bold ${isSelected ? "text-black" : "text-white"}`}>
+                            Ksh {tier.price.toLocaleString()}
+                          </p>
+                          {isSoldOut && (
+                            <span className="text-xs text-red-400">Sold Out</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
 
-                    <p className="text-lg font-bold">
-                      Ksh {tier.price.toLocaleString()}
-                    </p>
+          {/* RIGHT COLUMN - Checkout */}
+          <div className="lg:sticky lg:top-24 h-fit">
+            <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 p-4">
+                <h2 className="text-xl font-bold text-black text-center">Complete Your Booking</h2>
+              </div>
+              
+              <div className="p-6 space-y-5">
+                {/* Name Fields */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm text-gray-300 mb-1">First Name</label>
+                    <input
+                      type="text"
+                      placeholder="John"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
+                      value={formData.firstName}
+                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-300 mb-1">Last Name</label>
+                    <input
+                      type="text"
+                      placeholder="Doe"
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
+                      value={formData.lastName}
+                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {/* Email */}
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    placeholder="you@example.com"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+
+                {/* Phone */}
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    placeholder="+254 700 000000"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                </div>
+
+                {/* Quantity Selector */}
+                {formData.ticketType && (
+                  <div>
+                    <label className="block text-sm text-gray-300 mb-2">Quantity</label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleQuantityChange(-1)}
+                        className="w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all disabled:opacity-50"
+                        disabled={formData.quantity <= 1}
+                      >
+                        -
+                      </button>
+                      <span className="text-2xl font-bold text-white w-12 text-center">
+                        {formData.quantity}
+                      </span>
+                      <button
+                        onClick={() => handleQuantityChange(1)}
+                        className="w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all disabled:opacity-50"
+                        disabled={formData.quantity >= availableTickets}
+                      >
+                        +
+                      </button>
+                      <span className="text-sm text-gray-400 ml-2">
+                        {availableTickets} available
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment Method */}
+                <div>
+                  <label className="block text-sm text-gray-300 mb-2">Payment Method</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setFormData({ ...formData, paymentMethod: "card" })}
+                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                        formData.paymentMethod === "card"
+                          ? "bg-yellow-400 text-black"
+                          : "bg-white/5 text-gray-300 hover:bg-white/10"
+                      }`}
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      Card
+                    </button>
+                    <button
+                      onClick={() => setFormData({ ...formData, paymentMethod: "mpesa" })}
+                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                        formData.paymentMethod === "mpesa"
+                          ? "bg-yellow-400 text-black"
+                          : "bg-white/5 text-gray-300 hover:bg-white/10"
+                      }`}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      M-Pesa
+                    </button>
+                  </div>
+                </div>
+
+                {/* Terms */}
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-white/20 bg-white/5 checked:bg-yellow-400"
+                    checked={formData.terms}
+                    onChange={(e) => setFormData({ ...formData, terms: e.target.checked })}
+                  />
+                  <span className="text-sm text-gray-300">
+                    I agree to the <span className="text-yellow-400">Terms & Conditions</span>
+                  </span>
+                </label>
+
+                {/* Total & Pay Button */}
+                <div className="border-t border-white/10 pt-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-300">Total Amount</span>
+                    <span className="text-3xl font-bold text-white">
+                      Ksh {total.toLocaleString()}
+                    </span>
+                  </div>
+                  
+                  <button
+                    onClick={handleSubmit}
+                    disabled={isProcessing || !formData.ticketType || !formData.terms}
+                    className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold py-3 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isProcessing ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
+                        Processing...
+                      </div>
+                    ) : (
+                      "Confirm & Pay"
+                    )}
                   </button>
-                );
-              })}
+                  
+                  <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                    <Shield className="w-3 h-3" />
+                    Secure payment encrypted
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </section>
-
-        {/* RIGHT: CHECKOUT */}
-        <section className="lg:col-span-2">
-          <div className="bg-white rounded-2xl shadow-lg p-6 sticky top-10 space-y-6">
-
-            <h2 className="text-xl font-semibold">
-              Checkout
-            </h2>
-
-            {/* Quantity */}
-            <div>
-              <label className="text-sm text-gray-600">Quantity</label>
-              <input
-                id="quantity"
-                type="number"
-                min="1"
-                value={formData.quantity}
-                onChange={handleChange}
-                className="w-full mt-1 border rounded-lg px-3 py-2"
-              />
-            </div>
-
-            {/* User Info */}
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                id="firstName"
-                placeholder="First name"
-                value={formData.firstName}
-                onChange={handleChange}
-                className="border rounded-lg px-3 py-2"
-              />
-              <input
-                id="lastName"
-                placeholder="Last name"
-                value={formData.lastName}
-                onChange={handleChange}
-                className="border rounded-lg px-3 py-2"
-              />
-            </div>
-
-            <input
-              id="email"
-              placeholder="Email"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full border rounded-lg px-3 py-2"
-            />
-
-            <input
-              id="phone"
-              placeholder="Phone (+254...)"
-              value={formData.phone}
-              onChange={handleChange}
-              className="w-full border rounded-lg px-3 py-2"
-            />
-
-            {/* Payment */}
-            <select
-              id="paymentMethod"
-              value={formData.paymentMethod}
-              onChange={handleChange}
-              className="w-full border rounded-lg px-3 py-2"
-            >
-              <option value="">Payment method</option>
-              <option value="mpesa">M-Pesa</option>
-              <option value="card">Card</option>
-            </select>
-
-            {/* Terms */}
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                id="terms"
-                checked={formData.terms}
-                onChange={handleChange}
-                className="w-4 h-4 rounded"
-              />
-              <span>I agree to terms and conditions</span>
-            </label>
-
-            {/* Total - Live Update */}
-            <div className="border-t pt-4">
-              <div className="flex justify-between text-lg font-semibold mb-2">
-                <span>Subtotal</span>
-                <span className="text-emerald-600">Ksh {((selectedTierObj?.price || 0) * formData.quantity).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-xs text-gray-500 mb-4">
-                <span>{selectedTierObj?.ticket_type || "No tier"} × {formData.quantity}</span>
-              </div>
-            </div>
-
-            {/* M-Pesa Status */}
-            {mpesaStatus && (
-              <div className={`p-3 rounded-lg text-sm font-medium ${
-                mpesaStatus.includes("✅") ? "bg-green-100 text-green-800" :
-                mpesaStatus.includes("❌") ? "bg-red-100 text-red-800" :
-                "bg-blue-100 text-blue-800"
-              }`}>
-                {mpesaStatus}
-              </div>
-            )}
-
-            {/* CTA */}
-            <button
-              onClick={handleSubmit}
-              disabled={isProcessing || !formData.ticketType || !formData.terms}
-              className={`w-full py-3 rounded-xl font-semibold transition ${
-                isProcessing 
-                  ? "bg-gray-400 text-white cursor-not-allowed"
-                  : "bg-black text-white hover:opacity-90"
-              }`}
-            >
-              {isProcessing ? "Processing..." : "Pay Now →"}
-            </button>
-          </div>
-        </section>
+        </div>
       </div>
     </main>
   );

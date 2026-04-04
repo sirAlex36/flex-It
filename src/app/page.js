@@ -18,24 +18,32 @@ export default function Home() {
 
   // FETCH EVENTS
   useEffect(() => {
-    fetch(`${API_URL}/events`)
-      .then((res) => res.json())
-      .then((data) => {
-        setEvents(data);
-        setFiltered(data);
-      })
-      .catch((err) => console.error("Error fetching events:", err));
+    fetchEvents();
   }, [API_URL]);
 
-  // SEARCH FILTER
+  // SEARCH - refetch when search changes
   useEffect(() => {
-    const results = events.filter(
-      (event) =>
-        event.name.toLowerCase().includes(search.toLowerCase()) ||
-        event.venue.toLowerCase().includes(search.toLowerCase())
-    );
-    setFiltered(results);
-  }, [search, events]);
+    const debounceTimer = setTimeout(() => {
+      fetchEvents();
+    }, 300); // Debounce search
+
+    return () => clearTimeout(debounceTimer);
+  }, [search]);
+
+  const fetchEvents = async () => {
+    try {
+      const url = search 
+        ? `${API_URL}/events?search=${encodeURIComponent(search)}`
+        : `${API_URL}/events`;
+      
+      const res = await fetch(url);
+      const data = await res.json();
+      setEvents(data);
+      setFiltered(data);
+    } catch (err) {
+      console.error("Error fetching events:", err);
+    }
+  };
 
   // VERIFY TICKET (REAL READY)
   const handleVerifyTicket = async () => {
@@ -142,47 +150,63 @@ export default function Home() {
                 {filtered.slice(0, 6).map((event) => (
                   <div
                     key={event.id}
-                    className="bg-white rounded-xl shadow hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden"
+                    className="bg-white rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 overflow-hidden group"
                   >
-                    <img
-                      src={
-                        event.image ||
-                        "https://images.unsplash.com/photo-1492684223066-81342ee5ff30"
-                      }
-                      className="h-44 w-full object-cover"
-                    />
+                    <div className="relative">
+                      <img
+                        src={
+                          event.image ||
+                          "https://images.unsplash.com/photo-1492684223066-81342ee5ff30"
+                        }
+                        className="h-48 w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                        HOT
+                      </div>
+                    </div>
 
-                    <div className="p-4">
-                      <div className="flex justify-between items-start">
-                        <h3 className="font-semibold text-lg">
+                    <div className="p-6">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-xl text-gray-900 group-hover:text-blue-600 transition-colors">
                           {event.name}
                         </h3>
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                          Trending
+                        <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-1 rounded-full font-semibold">
+                          Experience
                         </span>
                       </div>
 
-                      <p className="text-gray-500 text-sm mt-1">
-                        📍 {event.venue}
+                      <div className="space-y-1 mb-3">
+                        <p className="text-gray-600 text-sm flex items-center">
+                          <span className="mr-2">📍</span> {event.venue}
+                        </p>
+                        <p className="text-gray-600 text-sm flex items-center">
+                          <span className="mr-2">📅</span> {new Date(event.date).toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </p>
+                      </div>
+
+                      <p className="text-gray-700 text-sm mb-4 line-clamp-3 leading-relaxed">
+                        {event.description || 
+                          "Join us for an unforgettable experience filled with excitement, networking, and memories that will last a lifetime. Don't miss out!"}
                       </p>
 
-                      <p className="text-gray-500 text-sm">
-                        📅 {event.date}
-                      </p>
-
-                      <p className="text-sm text-gray-600 mt-2 line-clamp-2">
-                        {event.description ||
-                          "Experience something amazing"}
-                      </p>
-
-                      <div className="flex justify-between items-center mt-4">
-                        <span className="font-bold text-blue-600">
-                          ksh {event.price || 1000}
-                        </span>
+                      <div className="flex justify-between items-center">
+                        <div className="flex flex-col">
+                          <span className="text-xs text-gray-500">Starting from</span>
+                          <span className="font-bold text-2xl text-green-600">
+                            KSh {event.ticket_prices?.length > 0 
+                              ? Math.min(...event.ticket_prices.map(tp => tp.price))
+                              : '1000'}
+                          </span>
+                        </div>
 
                         <Link href={`/event/${event.id}`}>
-                          <button className="bg-black text-white px-4 py-2 rounded-lg text-sm">
-                            View
+                          <button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                            Get Tickets
                           </button>
                         </Link>
                       </div>

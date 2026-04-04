@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Cog6ToothIcon,
-  LogOutIcon,
+  ArrowRightOnRectangleIcon,
   ChartBarIcon,
   UsersIcon,
   CalendarIcon,
@@ -116,8 +116,8 @@ const Modal = ({ isOpen, title, children, onClose, onSubmit, submitLabel = "Save
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 max-h-96 overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-8 my-8">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
           <button
@@ -127,7 +127,7 @@ const Modal = ({ isOpen, title, children, onClose, onSubmit, submitLabel = "Save
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
-        <div className="mb-6">{children}</div>
+        <div className="mb-6 max-h-96 overflow-y-auto">{children}</div>
         <div className="flex gap-3">
           <button
             onClick={onClose}
@@ -172,13 +172,74 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [events, setEvents] = useState([]);
   const [users, setUsers] = useState([]);
-  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const [showEventModal, setShowEventModal] = useState(false);
-  const [eventForm, setEventForm] = useState({ name: "", date: "", venue: "", description: "" });
+  const [eventForm, setEventForm] = useState({ 
+    name: "", 
+    date: "", 
+    venue: "", 
+    description: "",
+    ticket_prices: [
+      { ticket_type: "General", price: 1000 },
+      { ticket_type: "VIP", price: 2500 },
+    ]
+  });
+
+  // Handle ticket price changes
+  const updateTicketPrice = (index, field, value) => {
+    const updatedPrices = [...eventForm.ticket_prices];
+    updatedPrices[index][field] = field === 'price' ? parseInt(value) || 0 : value;
+    setEventForm({ ...eventForm, ticket_prices: updatedPrices });
+  };
+
+  const addTicketPrice = () => {
+    setEventForm({
+      ...eventForm,
+      ticket_prices: [...eventForm.ticket_prices, { ticket_type: "", price: 0 }]
+    });
+  };
+
+  const removeTicketPrice = (index) => {
+    setEventForm({
+      ...eventForm,
+      ticket_prices: eventForm.ticket_prices.filter((_, i) => i !== index)
+    });
+  };
+
+  // Define fetchDashboardData before hooks
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.accessToken}`,
+      };
+
+      const [eventsRes, usersRes] = await Promise.all([
+        fetch(`${API_URL}/events`, { headers }),
+        fetch(`${API_URL}/users`, { headers }),
+      ]);
+
+      if (eventsRes.ok) {
+        const eventsData = await eventsRes.json();
+        setEvents(Array.isArray(eventsData) ? eventsData : []);
+      }
+
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        setUsers(Array.isArray(usersData) ? usersData : []);
+      }
+
+      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
+      setError("Failed to load dashboard data");
+      setLoading(false);
+    }
+  };
 
   // Protection - redirect if not admin
   useEffect(() => {
@@ -196,42 +257,20 @@ export default function AdminDashboard() {
     }
   }, [session]);
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session?.accessToken}`,
-      };
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="h-12 w-12 border-b-2 border-blue-600 rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
-      const [eventsRes, usersRes, transactionsRes] = await Promise.all([
-        fetch(`${API_URL}/events`, { headers }),
-        fetch(`${API_URL}/users`, { headers }),
-        fetch(`${API_URL}/transactions`, { headers }),
-      ]);
-
-      if (eventsRes.ok) {
-        const eventsData = await eventsRes.json();
-        setEvents(Array.isArray(eventsData) ? eventsData : []);
-      }
-
-      if (usersRes.ok) {
-        const usersData = await usersRes.json();
-        setUsers(Array.isArray(usersData) ? usersData : []);
-      }
-
-      if (transactionsRes.ok) {
-        const transactionsData = await transactionsRes.json();
-        setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
-      }
-
-      setLoading(false);
-    } catch (err) {
-      console.error("Error fetching dashboard data:", err);
-      setError("Failed to load dashboard data");
-      setLoading(false);
-    }
-  };
+  if (!session?.user?.id) {
+    return null; // Redirect happens in useEffect
+  }
 
   const handleCreateEvent = async () => {
     try {
@@ -247,10 +286,20 @@ export default function AdminDashboard() {
       if (response.ok) {
         setSuccess("Event created successfully!");
         setShowEventModal(false);
-        setEventForm({ name: "", date: "", venue: "", description: "" });
+        setEventForm({ 
+          name: "", 
+          date: "", 
+          venue: "", 
+          description: "",
+          ticket_prices: [
+            { ticket_type: "General", price: 1000 },
+            { ticket_type: "VIP", price: 2500 },
+          ]
+        });
         fetchDashboardData();
       } else {
-        setError("Failed to create event");
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to create event");
       }
     } catch (err) {
       console.error("Error creating event:", err);
@@ -274,10 +323,10 @@ export default function AdminDashboard() {
   }
 
   // Calculate stats
-  const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+  const totalRevenue = 0; // Transactions endpoint not available
   const totalUsers = users.length;
   const totalEvents = events.length;
-  const successfulTransactions = transactions.filter((t) => t.status === "success").length;
+  const successfulTransactions = 0; // Transactions endpoint not available
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100">
@@ -312,7 +361,7 @@ export default function AdminDashboard() {
                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
                 title="Sign out"
               >
-                <LogOutIcon className="w-5 h-5" />
+                <ArrowRightOnRectangleIcon className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -445,22 +494,11 @@ export default function AdminDashboard() {
         {activeTab === "transactions" && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-gray-900">Transactions</h2>
-            {transactions.length > 0 ? (
-              <DataTable
-                columns={["id", "amount", "status", "payment_method"]}
-                data={transactions.map((t) => ({
-                  id: t.id,
-                  amount: `$${(t.amount / 100).toFixed(2)}`,
-                  status: t.status,
-                  payment_method: t.payment_method,
-                }))}
-              />
-            ) : (
-              <div className="text-center py-12 bg-gray-50 rounded-2xl">
-                <CreditCardIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600">No transactions yet</p>
-              </div>
-            )}
+            <div className="text-center py-12 bg-gray-50 rounded-2xl">
+              <CreditCardIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600">Transaction tracking is currently unavailable</p>
+              <p className="text-sm text-gray-500 mt-2">Please check back soon for detailed transaction reports</p>
+            </div>
           </div>
         )}
       </main>

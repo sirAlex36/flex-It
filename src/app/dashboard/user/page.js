@@ -11,7 +11,7 @@ import {
   MagnifyingGlassIcon,
   HeartIcon,
   BellIcon,
-  LogOutIcon,
+  ArrowRightOnRectangleIcon,
   StarIcon,
   MapPinIcon,
   CurrencyDollarIcon,
@@ -233,6 +233,57 @@ export default function UserDashboard() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
 
+  // Define async functions before hooks
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.accessToken}`,
+      };
+
+      const [ticketsRes] = await Promise.all([
+        fetch(`${API_URL}/user/tickets`, { headers }),
+      ]);
+
+      if (ticketsRes.ok) {
+        const ticketsData = await ticketsRes.json();
+        setUserTickets(Array.isArray(ticketsData) ? ticketsData : []);
+      }
+
+      // Fetch events separately
+      await fetchEvents();
+
+      setLoading(false);
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
+      setError("Failed to load data");
+      setLoading(false);
+    }
+  };
+
+  const fetchEvents = async () => {
+    try {
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session?.accessToken}`,
+      };
+
+      const url = searchTerm 
+        ? `${API_URL}/events?search=${encodeURIComponent(searchTerm)}`
+        : `${API_URL}/events`;
+      
+      const eventsRes = await fetch(url, { headers });
+      
+      if (eventsRes.ok) {
+        const eventsData = await eventsRes.json();
+        setEvents(Array.isArray(eventsData) ? eventsData : []);
+      }
+    } catch (err) {
+      console.error("Error fetching events:", err);
+    }
+  };
+
   // Protection - redirect if not user
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -242,43 +293,38 @@ export default function UserDashboard() {
     }
   }, [status, session, router]);
 
-  // Fetch data from backend
+  // Fetch dashboard data on mount
   useEffect(() => {
-    if (session?.user?.id) {
+    if (status === "authenticated" && session?.user?.id) {
       fetchDashboardData();
     }
-  }, [session]);
+  }, [status, session?.user?.id]);
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session?.accessToken}`,
-      };
+  // Refetch events when search changes
+  useEffect(() => {
+    if (session?.user?.id) {
+      const debounceTimer = setTimeout(() => {
+        fetchEvents();
+      }, 300);
 
-      const [eventsRes, ticketsRes] = await Promise.all([
-        fetch(`${API_URL}/events`, { headers }),
-        fetch(`${API_URL}/user/tickets`, { headers }),
-      ]);
-
-      if (eventsRes.ok) {
-        const eventsData = await eventsRes.json();
-        setEvents(Array.isArray(eventsData) ? eventsData : []);
-      }
-
-      if (ticketsRes.ok) {
-        const ticketsData = await ticketsRes.json();
-        setUserTickets(Array.isArray(ticketsData) ? ticketsData : []);
-      }
-
-      setLoading(false);
-    } catch (err) {
-      console.error("Error fetching dashboard data:", err);
-      setError("Failed to load data");
-      setLoading(false);
+      return () => clearTimeout(debounceTimer);
     }
-  };
+  }, [searchTerm, session]);
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="h-12 w-12 border-b-2 border-blue-600 rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session?.user?.id) {
+    return null; // Redirect happens in useEffect
+  }
 
   const handleBook = (event) => {
     setSelectedEvent(event);
@@ -325,9 +371,7 @@ export default function UserDashboard() {
     }
   };
 
-  const filteredEvents = events.filter((e) =>
-    e.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEvents = events;
 
   if (status === "loading" || loading) {
     return (
@@ -377,7 +421,7 @@ export default function UserDashboard() {
                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
                 title="Sign out"
               >
-                <LogOutIcon className="w-5 h-5" />
+                <ArrowRightOnRectangleIcon className="w-5 h-5" />
               </button>
             </div>
           </div>

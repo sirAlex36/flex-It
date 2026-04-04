@@ -5,99 +5,122 @@ import { useRouter } from "next/navigation";
 
 export default function UpcomingEvents() {
   const router = useRouter();
-  const API_URL = "http://localhost:5000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_URL}/events`)
-      .then((res) => res.json())
-      .then((data) => {
+    const fetchEvents = async () => {
+      try {
+        const res = await fetch(`${API_URL}/events`);
+        const data = await res.json();
         setEvents(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+      }
+    };
+
+    fetchEvents();
+  }, [API_URL]);
 
   return (
-    <main className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-7xl mx-auto px-6">
-        {/* Page Header */}
-        <h1 className="text-4xl sm:text-5xl font-extrabold mb-12 text-gray-900">
-          Explore Events
-        </h1>
+    <main className="min-h-screen bg-black text-white">
 
-        {/* Loading Skeleton */}
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div
-                key={i}
-                className="h-72 bg-gray-200 rounded-3xl animate-pulse"
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {events.map((event) => (
+      {/* 🔥 HERO SECTION */}
+      <section className="px-6 pt-16 pb-12 max-w-7xl mx-auto">
+        <h1 className="text-5xl sm:text-6xl font-extrabold leading-tight">
+          Discover <span className="text-yellow-400">Experiences</span>
+        </h1>
+        <p className="text-gray-400 mt-4 text-lg max-w-xl">
+          Find events that match your vibe. Book instantly. Live the moment.
+        </p>
+      </section>
+
+      {/* 🔄 LOADING */}
+      {loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 px-6 max-w-7xl mx-auto pb-16">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="h-80 bg-gray-800 rounded-2xl animate-pulse"
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 🎯 EVENTS GRID */}
+      {!loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10 px-6 max-w-7xl mx-auto pb-20">
+          {events.map((event) => {
+            const minPrice =
+              event.ticket_prices?.length > 0
+                ? Math.min(...event.ticket_prices.map((tp) => tp.price))
+                : null;
+
+            return (
               <div
                 key={event.id}
-                className="bg-white rounded-3xl shadow-md hover:shadow-xl transform hover:scale-105 transition-all duration-300 overflow-hidden relative"
+                className="group relative rounded-2xl overflow-hidden cursor-pointer"
+                onClick={() => router.push(`/event/${event.id}`)}
               >
-                {/* Optional Ribbon */}
-                {event.is_popular && (
-                  <div className="absolute top-4 left-4 bg-yellow-400 text-black px-3 py-1 rounded-full text-xs font-semibold z-10">
-                    Popular
-                  </div>
-                )}
+                {/* IMAGE */}
+                <img
+                  src={event.image || "https://via.placeholder.com/400x250"}
+                  alt={event.name}
+                  className="w-full h-[350px] object-cover group-hover:scale-110 transition duration-700"
+                />
 
-                {/* Event Image */}
-                <div className="overflow-hidden rounded-t-3xl">
-                  <img
-                    src={event.image || "https://via.placeholder.com/400x250"}
-                    alt={event.name}
-                    className="w-full h-56 object-cover transition-transform duration-500 hover:scale-110"
-                  />
-                </div>
+                {/* DARK OVERLAY */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
 
-                {/* Event Info */}
-                <div className="p-6 space-y-3">
-                  <h3 className="text-2xl font-bold text-gray-900">
+                {/* CONTENT */}
+                <div className="absolute bottom-0 p-6 w-full">
+                  <h3 className="text-2xl font-bold">
                     {event.name}
                   </h3>
-                  <p className="text-gray-500 text-sm">
+
+                  <p className="text-gray-300 text-sm mt-1">
                     📍 {event.venue}
                   </p>
+
                   <p className="text-gray-400 text-sm">
                     📅 {event.date}
                   </p>
-                  <p className="text-gray-600 text-sm line-clamp-3">
-                    {event.description || "No description available."}
-                  </p>
 
-                  {/* Price & CTA */}
+                  {/* PRICE + CTA */}
                   <div className="flex justify-between items-center mt-4">
-                    <span className="font-bold text-lg text-green-600">
-                      From Ksh{" "}
-                      {event.ticket_prices && event.ticket_prices.length > 0
-                        ? Math.min(...event.ticket_prices.map((tp) => tp.price)).toLocaleString()
-                        : "N/A"}
+                    <span className="text-yellow-400 font-semibold text-lg">
+                      {minPrice
+                        ? `Ksh ${minPrice.toLocaleString()}`
+                        : "Free"}
                     </span>
 
                     <button
-                      onClick={() => router.push(`/event/${event.id}`)}
-                      className="bg-black text-white px-4 py-2 rounded-xl text-sm hover:opacity-90 shadow hover:shadow-lg transition"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/event/${event.id}`);
+                      }}
+                      className="bg-yellow-400 text-black px-4 py-2 rounded-full text-sm font-bold hover:bg-yellow-300 transition"
                     >
-                      View Details
+                      Book Now
                     </button>
                   </div>
                 </div>
+
+                {/* POPULAR TAG */}
+                {event.is_popular && (
+                  <div className="absolute top-4 left-4 bg-yellow-400 text-black px-3 py-1 text-xs font-bold rounded-full shadow">
+                    🔥 Popular
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </main>
   );
 }
