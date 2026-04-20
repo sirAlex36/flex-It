@@ -21,6 +21,8 @@ export default function LoginPage() {
 
       if (role === "admin") {
         router.replace("/dashboard/admin");
+      } else if (role === "organiser") {
+        router.replace("/dashboard/organiser");
       } else {
         router.replace("/dashboard/user");
       }
@@ -70,6 +72,8 @@ export default function LoginPage() {
           // Redirect immediately
           if (role === "admin") {
             router.push("/dashboard/admin");
+          } else if (role === "organiser") {
+            router.push("/dashboard/organiser");
           } else {
             router.push("/dashboard/user");
           }

@@ -28,8 +28,18 @@ export async function apiCall(endpoint, options = {}) {
 }
 
 // Events
-export async function getEvents() {
-  return apiCall("/events");
+export async function getEvents(filters = {}) {
+  const params = new URLSearchParams();
+  
+  if (filters.search) params.append("search", filters.search);
+  if (filters.venue) params.append("venue", filters.venue);
+  if (filters.minPrice) params.append("minPrice", filters.minPrice);
+  if (filters.maxPrice) params.append("maxPrice", filters.maxPrice);
+  if (filters.startDate) params.append("startDate", filters.startDate);
+  if (filters.endDate) params.append("endDate", filters.endDate);
+  
+  const endpoint = `/events${params.toString() ? "?" + params.toString() : ""}`;
+  return apiCall(endpoint);
 }
 
 export async function getEvent(id) {
@@ -102,4 +112,143 @@ export async function login(email, password) {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
+}
+
+// ============ ADMIN USER MANAGEMENT ============
+
+export async function getAllUsers(page = 1, perPage = 10, roleFilter = null) {
+  let url = `/admin/users?page=${page}&per_page=${perPage}`;
+  if (roleFilter) url += `&role=${roleFilter}`;
+  return apiCall(url);
+}
+
+export async function getUserProfile(userId) {
+  return apiCall(`/admin/users/${userId}`);
+}
+
+export async function changeUserRole(userId, role) {
+  return apiCall(`/admin/users/${userId}/role`, {
+    method: "PUT",
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function suspendUser(userId, suspend = true) {
+  return apiCall(`/admin/users/${userId}/suspend`, {
+    method: "PUT",
+    body: JSON.stringify({ suspend }),
+  });
+}
+
+export async function deleteUser(userId) {
+  return apiCall(`/admin/users/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function resetUserPassword(userId) {
+  return apiCall(`/admin/users/${userId}/reset-password`, {
+    method: "POST",
+  });
+}
+
+export async function getAuditLogs(page = 1, perPage = 20, entityType = null) {
+  let url = `/admin/audit-logs?page=${page}&per_page=${perPage}`;
+  if (entityType) url += `&entity_type=${entityType}`;
+  return apiCall(url);
+}
+
+export async function getLoginHistory(page = 1, perPage = 20, userId = null) {
+  let url = `/admin/login-history?page=${page}&per_page=${perPage}`;
+  if (userId) url += `&user_id=${userId}`;
+  return apiCall(url);
+}
+
+// ============ TRANSACTION MANAGEMENT ============
+
+export async function getAllTransactions(page = 1, perPage = 20, status = null, method = null) {
+  let url = `/transactions?page=${page}&per_page=${perPage}`;
+  if (status) url += `&status=${status}`;
+  if (method) url += `&payment_method=${method}`;
+  return apiCall(url);
+}
+
+export async function getTransactionDetails(transactionId) {
+  return apiCall(`/transactions/${transactionId}`);
+}
+
+export async function confirmPayment(transactionId, mpesaReceipt = null) {
+  return apiCall(`/transactions/${transactionId}/confirm`, {
+    method: "POST",
+    body: JSON.stringify({ mpesa_receipt: mpesaReceipt }),
+  });
+}
+
+export async function refundPayment(transactionId, amount = null) {
+  return apiCall(`/transactions/${transactionId}/refund`, {
+    method: "POST",
+    body: JSON.stringify({ amount }),
+  });
+}
+
+export async function retryFailedPayment(ticketId) {
+  return apiCall(`/tickets/${ticketId}/retry-payment`, {
+    method: "POST",
+  });
+}
+
+export async function getTransactionStats() {
+  return apiCall("/transactions/stats");
+}
+
+// ============ TICKET MANAGEMENT ============
+
+export async function resendTicketEmail(ticketId) {
+  return apiCall(`/tickets/${ticketId}/resend-email`, {
+    method: "POST",
+  });
+}
+
+export async function regenerateTicketQR(ticketId) {
+  return apiCall(`/tickets/${ticketId}/regenerate-qr`, {
+    method: "POST",
+  });
+}
+
+export async function cancelTicket(ticketId) {
+  return apiCall(`/tickets/${ticketId}/cancel`, {
+    method: "POST",
+  });
+}
+
+export async function checkInTicket(ticketId) {
+  return apiCall(`/tickets/${ticketId}/check-in`, {
+    method: "POST",
+  });
+}
+
+export async function getAllTickets(page = 1, perPage = 20, eventId = null, userId = null, status = null) {
+  let url = `/admin/tickets?page=${page}&per_page=${perPage}`;
+  if (eventId) url += `&event_id=${eventId}`;
+  if (userId) url += `&user_id=${userId}`;
+  if (status) url += `&status=${status}`;
+  return apiCall(url);
+}
+
+// ============ ANALYTICS ============
+
+export async function getDashboardAnalytics() {
+  return apiCall("/analytics/dashboard");
+}
+
+export async function getEventPerformance(eventId) {
+  return apiCall(`/analytics/events/${eventId}/performance`);
+}
+
+export async function getRevenueTrends(days = 30) {
+  return apiCall(`/analytics/revenue-trends?days=${days}`);
+}
+
+export async function getUserMetrics(days = 30) {
+  return apiCall(`/analytics/user-metrics?days=${days}`);
 }

@@ -21,6 +21,16 @@ import {
   PencilIcon,
   TrashIcon,
   EyeIcon,
+  LockClosedIcon,
+  LockOpenIcon,
+  EnvelopeIcon,
+  QrCodeIcon,
+  SparklesIcon,
+  ShieldCheckIcon,
+  ChatBubbleLeftIcon,
+  GiftIcon,
+  ArchiveBoxIcon,
+  AdjustmentsHorizontalIcon,
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
@@ -375,12 +385,14 @@ export default function AdminDashboard() {
         {success && <Alert type="success" message={success} onClose={() => setSuccess("")} />}
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-8 border-b border-gray-200">
+        <div className="flex gap-2 mb-8 border-b border-gray-200 overflow-x-auto">
           {[
             { id: "overview", label: "Overview", icon: ChartBarIcon },
             { id: "events", label: "Events", icon: CalendarIcon },
             { id: "users", label: "Users", icon: UsersIcon },
             { id: "transactions", label: "Transactions", icon: CreditCardIcon },
+            { id: "tickets", label: "Tickets", icon: TicketIcon },
+            { id: "analytics", label: "Analytics", icon: ChartBarIcon },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -498,6 +510,46 @@ export default function AdminDashboard() {
               <CreditCardIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
               <p className="text-gray-600">Transaction tracking is currently unavailable</p>
               <p className="text-sm text-gray-500 mt-2">Please check back soon for detailed transaction reports</p>
+            </div>
+          </div>
+        )}
+
+        {/* Tickets Tab */}
+        {activeTab === "tickets" && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900">Tickets Management</h2>
+            <div className="text-center py-12 bg-gray-50 rounded-2xl">
+              <TicketIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600">Ticket management coming soon</p>
+              <p className="text-sm text-gray-500 mt-2">View, resend, regenerate QR codes, and manage customer tickets</p>
+            </div>
+          </div>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === "analytics" && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-gray-900">Analytics & Reports</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <h3 className="font-semibold text-gray-900 mb-2">Revenue</h3>
+                <p className="text-3xl font-bold text-blue-600">KES 0</p>
+                <p className="text-xs text-gray-500 mt-2">Total revenue collected</p>
+              </div>
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <h3 className="font-semibold text-gray-900 mb-2">Tickets Sold</h3>
+                <p className="text-3xl font-bold text-green-600">0</p>
+                <p className="text-xs text-gray-500 mt-2">All time</p>
+              </div>
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <h3 className="font-semibold text-gray-900 mb-2">Payment Success Rate</h3>
+                <p className="text-3xl font-bold text-purple-600">0%</p>
+                <p className="text-xs text-gray-500 mt-2">Successful transactions</p>
+              </div>
+            </div>
+            <div className="text-center py-12 bg-gray-50 rounded-2xl">
+              <ChartBarIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600">Detailed analytics coming soon</p>
             </div>
           </div>
         )}

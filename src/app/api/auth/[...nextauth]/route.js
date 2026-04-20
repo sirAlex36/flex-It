@@ -42,7 +42,24 @@ const authOptions = {
           clearTimeout(timeout);
 
           if (!response.ok) {
-            const error = await response.json();
+            const contentType = response.headers.get("content-type");
+            let error = {};
+            
+            // Handle JSON responses
+            if (contentType && contentType.includes("application/json")) {
+              try {
+                error = await response.json();
+              } catch (parseError) {
+                console.error("❌ Failed to parse JSON error response:", parseError);
+                error = { error: "Invalid JSON response from server" };
+              }
+            } else {
+              // Handle non-JSON responses (HTML error pages, etc.)
+              const text = await response.text();
+              console.error("❌ Non-JSON error response:", text.substring(0, 200));
+              error = { error: `Server error (${response.status}): ${response.statusText}` };
+            }
+            
             console.error("❌ Login failed:", error);
             throw new Error(error.error || "Login failed");
           }

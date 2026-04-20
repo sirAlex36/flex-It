@@ -4,6 +4,20 @@ import React, { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+// Redirect organizers to their dashboard
+const OrganizerRedirect = () => {
+  const { data: session } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (session?.user?.role === "organizer") {
+      router.push("/dashboard/organizer");
+    }
+  }, [session?.user?.role, router]);
+
+  return null;
+};
 import {
   CalendarIcon,
   TicketIcon,

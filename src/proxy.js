@@ -42,3 +42,10 @@ export const config = {
     "/profile/:path*",
   ],
 };
+
+// Role-based redirects for organiser
+if (pathname.startsWith("/dashboard/organiser")) {
+  if (token.role !== "organiser") {
+    return NextResponse.redirect(new URL(`/dashboard/${token.role || "user"}`, request.url));
+  }
+}

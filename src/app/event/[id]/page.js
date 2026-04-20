@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession, signIn } from "next-auth/react";
 import { Calendar, MapPin, Clock, Users, CreditCard, Shield, CheckCircle, ArrowLeft, Ticket, Sparkles } from "lucide-react";
-
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 const DEFAULT_CAPACITY_BY_TIER = {
   vip: 50,
   premium: 100,
@@ -24,12 +25,12 @@ const getTierCapacity = (ticketType) => {
 export default function EventDetailsPage() {
   const { id } = useParams();
   const router = useRouter();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const { data: session } = useSession();
+  
 
   const [event, setEvent] = useState(null);
-  const [tickets, setTickets] = useState([]);
   const [bookingConfirmation, setBookingConfirmation] = useState(null);
-  const [selectedTierId, setSelectedTierId] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -42,41 +43,41 @@ export default function EventDetailsPage() {
     terms: false,
   });
 
-  const [availability, setAvailability] = useState({ perTier: {} });
   const [isProcessing, setIsProcessing] = useState(false);
   const [mpesaStatus, setMpesaStatus] = useState("");
 
+  // Fetch event with ticket information
   useEffect(() => {
-    fetch(`${API_URL}/events/${id}`)
-      .then((r) => r.json())
-      .then(setEvent);
-
-    fetch(`${API_URL}/tickets`)
-      .then((r) => r.json())
-      .then((data) =>
-        setTickets(data.filter((t) => Number(t.event_id) === Number(id)))
-      );
-  }, [id]);
-
-  useEffect(() => {
-    if (!event) return;
-
-    const stats = {};
-    event.ticket_prices?.forEach((t) => {
-      stats[t.ticket_type] = {
-        sold: 0,
-        capacity: getTierCapacity(t.ticket_type),
-      };
-    });
-
-    tickets.forEach((t) => {
-      if (stats[t.ticket_type]) {
-        stats[t.ticket_type].sold++;
+    const fetchEvent = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch(`${API_URL}/events/${id}`);
+        const data = await res.json();
+        
+        // Transform ticket_prices array to tickets object
+        const tickets = {};
+        if (data.ticket_prices && Array.isArray(data.ticket_prices)) {
+          data.ticket_prices.forEach((tp) => {
+            tickets[tp.ticket_type] = {
+              id: tp.id,
+              price: tp.price,
+              available: 100, // Default availability
+            };
+          });
+        }
+        
+        setEvent({ ...data, tickets });
+      } catch (err) {
+        console.error("Error fetching event:", err);
+      } finally {
+        setLoading(false);
       }
-    });
+    };
 
-    setAvailability({ perTier: stats });
-  }, [event, tickets]);
+    if (id) {
+      fetchEvent();
+    }
+  }, [id]);
 
   const handleQuantityChange = (delta) => {
     const newQuantity = formData.quantity + delta;
@@ -86,12 +87,15 @@ export default function EventDetailsPage() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.ticketType) {
-      alert("Please select a ticket type");
+    // Check if user is logged in
+    if (!session) {
+      alert("Please login to book tickets");
+      await signIn();
       return;
     }
-    if (!formData.firstName || !formData.lastName) {
-      alert("Please enter your full name");
+
+    if (!formData.ticketType) {
+      alert("Please select a ticket type");
       return;
     }
     if (!formData.email) {
@@ -110,9 +114,18 @@ export default function EventDetailsPage() {
     setIsProcessing(true);
 
     try {
+      const headers = {
+        "Content-Type": "application/json",
+      };
+
+      // Add JWT token from session if available
+      if (session?.accessToken) {
+        headers.Authorization = `Bearer ${session.accessToken}`;
+      }
+
       const res = await fetch(`${API_URL}/tickets`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           event_id: id,
           ticket_type: formData.ticketType,
@@ -124,6 +137,11 @@ export default function EventDetailsPage() {
         }),
       });
 
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Booking failed");
+      }
+
       const data = await res.json();
 
       setBookingConfirmation({
@@ -133,22 +151,19 @@ export default function EventDetailsPage() {
         quantity: formData.quantity,
         eventName: event?.name,
       });
+
+      alert("Booking successful! Proceed to payment.");
     } catch (err) {
       console.error(err);
-      alert("Booking failed. Please try again.");
+      alert(err.message || "Booking failed. Please try again.");
     }
 
     setIsProcessing(false);
   };
 
-  const selected = event?.ticket_prices?.find(
-    (t) => t.ticket_type === formData.ticketType
-  );
-
+  const selected = event?.tickets?.[formData.ticketType];
   const total = selected ? selected.price * formData.quantity : 0;
-  const availableTickets = formData.ticketType && availability.perTier[formData.ticketType] 
-    ? availability.perTier[formData.ticketType].capacity - availability.perTier[formData.ticketType].sold
-    : 0;
+  const availableTickets = selected ? selected.available : 0;
 
   // Premium Confirmation Screen
   if (bookingConfirmation) {
@@ -211,7 +226,7 @@ export default function EventDetailsPage() {
     );
   }
 
-  if (!event) return (
+  if (loading || !event) return (
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="animate-pulse flex flex-col items-center">
         <div className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
