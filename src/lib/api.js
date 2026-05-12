@@ -2,16 +2,23 @@
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
 
-export async function apiCall(endpoint, options = {}) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+export async function apiCall(endpoint, options = {}, token = null) {
+  // Try to get token from options.headers.Authorization first, then from parameter, then from localStorage
+  let authToken = token;
+  if (options.headers?.Authorization) {
+    authToken = options.headers.Authorization.replace("Bearer ", "");
+  }
+  if (!authToken && typeof window !== "undefined") {
+    authToken = localStorage.getItem("token");
+  }
 
   const headers = {
     "Content-Type": "application/json",
     ...options.headers,
   };
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
@@ -251,4 +258,52 @@ export async function getRevenueTrends(days = 30) {
 
 export async function getUserMetrics(days = 30) {
   return apiCall(`/analytics/user-metrics?days=${days}`);
+}
+
+// ============ ORGANISER MANAGEMENT ============
+
+export async function createOrganizerEvent(data) {
+  return apiCall("/organiser/events", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getOrganizerEvents(page = 1, perPage = 10) {
+  return apiCall(`/organiser/events?page=${page}&per_page=${perPage}`);
+}
+
+export async function getOrganizerEvent(eventId) {
+  return apiCall(`/organiser/events/${eventId}`);
+}
+
+export async function updateOrganizerEvent(eventId, data) {
+  return apiCall(`/organiser/events/${eventId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteOrganizerEvent(eventId) {
+  return apiCall(`/organiser/events/${eventId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getEventTickets(eventId, page = 1, perPage = 20, status = null) {
+  let url = `/organiser/events/${eventId}/tickets?page=${page}&per_page=${perPage}`;
+  if (status) url += `&status=${status}`;
+  return apiCall(url);
+}
+
+export async function getOrganizerDashboardAnalytics() {
+  return apiCall("/organiser/dashboard-analytics");
+}
+
+export async function getOrganizerEventPerformance(eventId) {
+  return apiCall(`/organiser/event-performance/${eventId}`);
+}
+
+export async function getOrganizerProfile() {
+  return apiCall("/organiser/profile");
 }

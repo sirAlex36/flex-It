@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 export default function BookingPage() {
   const params = useParams();
   const router = useRouter();
-  const API_URL = "http://localhost:5000";
+  const { data: session, status } = useSession();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
   const [bookingData, setBookingData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -79,6 +81,12 @@ export default function BookingPage() {
 
     if (!validateForm() || !bookingData) return;
 
+    // Ensure user is authenticated
+    if (!session?.user?.id) {
+      setError("You must be logged in to complete a booking");
+      return;
+    }
+
     setSubmitting(true);
     setError("");
 
@@ -87,7 +95,7 @@ export default function BookingPage() {
       ticket_type: bookingData.ticketType,
       quantity: bookingData.quantity,
       price: bookingData.totalAmount,
-      user_id: 1,
+      user_id: session.user.id,
     };
 
     try {

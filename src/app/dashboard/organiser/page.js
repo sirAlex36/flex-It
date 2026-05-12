@@ -18,27 +18,52 @@ import {
   Plus,
   Eye,
   Edit2,
-  MoreHorizontal,
-  ArrowUpRight,
-  ArrowDownLeft,
+  Trash2,
   CheckCircle,
   AlertCircle,
   Clock,
+  Loader,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from "lucide-react";
+import {
+  getOrganizerDashboardAnalytics,
+  getOrganizerEvents,
+  createOrganizerEvent,
+  updateOrganizerEvent,
+  deleteOrganizerEvent,
+  getEventTickets,
+} from "@/lib/api";
 
-const OrgamiserDashboard = () => {
+const OrganizerDashboard = () => {
   const router = useRouter();
-  const pathname = usePathname();
   const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+  
+  // Dashboard data
   const [dashboardData, setDashboardData] = useState({
-    totalEvents: 12,
-    totalTicketsSold: 2849,
-    totalRevenue: 142450,
-    upcomingEvents: 4,
-    pendingPayouts: 25000,
+    total_events: 0,
+    total_tickets_sold: 0,
+    total_revenue: 0,
+    upcoming_events: 0,
+    pending_payouts: 0,
+  });
+
+  const [events, setEvents] = useState([]);
+  const [ticketsForEvent, setTicketsForEvent] = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState(null);
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    date: "",
+    venue: "",
+    description: "",
+    image: "",
+    ticket_prices: [{ ticket_type: "General", price: 1000 }],
   });
 
   // 🔐 PROTECT ORGANISER ROUTE
@@ -49,6 +74,116 @@ const OrgamiserDashboard = () => {
       router.push(`/dashboard/${session?.user?.role}`);
     }
   }, [status, session, router]);
+
+  // Load dashboard data
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.role === "organiser") {
+      loadDashboardData();
+    }
+  }, [status, session]);
+
+  // Load events when events tab is opened
+  useEffect(() => {
+    if (activeTab === "events" && events.length === 0) {
+      loadEvents();
+    }
+  }, [activeTab]);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const data = await getOrganizerDashboardAnalytics();
+      setDashboardData(data);
+      setError(null);
+    } catch (err) {
+      console.error("Error loading dashboard:", err);
+      setError("Failed to load dashboard data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadEvents = async () => {
+    try {
+      setLoading(true);
+      const response = await getOrganizerEvents(1, 20);
+      setEvents(response.events || []);
+      setError(null);
+    } catch (err) {
+      console.error("Error loading events:", err);
+      setError("Failed to load events");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadEventTickets = async (eventId) => {
+    try {
+      setLoading(true);
+      const response = await getEventTickets(eventId, 1, 50);
+      setTicketsForEvent(response.tickets || []);
+      setSelectedEventId(eventId);
+      setError(null);
+    } catch (err) {
+      console.error("Error loading tickets:", err);
+      setError("Failed to load tickets");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateEvent = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      await createOrganizerEvent(formData);
+      setSuccess("Event created successfully!");
+      setFormData({
+        name: "",
+        date: "",
+        venue: "",
+        description: "",
+        image: "",
+        ticket_prices: [{ ticket_type: "General", price: 1000 }],
+      });
+      setShowEventForm(false);
+      loadEvents();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err.message || "Failed to create event");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateEvent = async (eventId, updatedData) => {
+    try {
+      setLoading(true);
+      await updateOrganizerEvent(eventId, updatedData);
+      setSuccess("Event updated successfully!");
+      loadEvents();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err.message || "Failed to update event");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId) => {
+    if (!confirm("Are you sure you want to delete this event?")) return;
+    try {
+      setLoading(true);
+      await deleteOrganizerEvent(eventId);
+      setSuccess("Event deleted successfully!");
+      loadEvents();
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err.message || "Failed to delete event");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (status === "loading") {
     return (
@@ -298,44 +433,39 @@ const OrgamiserDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
                 <StatCard
                   title="Total Events"
-                  value={dashboardData.totalEvents}
+                  value={dashboardData.total_events}
                   icon={Calendar}
                   bgColor="bg-blue-100"
                   iconColor="text-blue-600"
-                  trend={12}
                 />
                 <StatCard
                   title="Tickets Sold"
-                  value={dashboardData.totalTicketsSold.toLocaleString()}
+                  value={dashboardData.total_tickets_sold.toLocaleString()}
                   icon={Ticket}
                   bgColor="bg-pink-100"
                   iconColor="text-pink-600"
-                  trend={25}
                 />
                 <StatCard
                   title="Total Revenue"
-                  value={`KES ${dashboardData.totalRevenue.toLocaleString()}`}
+                  value={`KES ${dashboardData.total_revenue.toLocaleString()}`}
                   icon={DollarSign}
                   bgColor="bg-green-100"
                   iconColor="text-green-600"
-                  trend={18}
                 />
                 <StatCard
                   title="Upcoming Events"
-                  value={dashboardData.upcomingEvents}
+                  value={dashboardData.upcoming_events}
                   subtitle="In next 30 days"
                   icon={Clock}
                   bgColor="bg-orange-100"
                   iconColor="text-orange-600"
-                  trend={5}
                 />
                 <StatCard
                   title="Pending Payouts"
-                  value={`KES ${dashboardData.pendingPayouts.toLocaleString()}`}
+                  value={`KES ${dashboardData.pending_payouts.toLocaleString()}`}
                   icon={DollarSign}
                   bgColor="bg-indigo-100"
                   iconColor="text-indigo-600"
-                  trend={-8}
                 />
               </div>
 
@@ -345,105 +475,326 @@ const OrgamiserDashboard = () => {
                 <div className="lg:col-span-2 space-y-4">
                   <div className="flex items-center justify-between">
                     <h2 className="text-xl font-bold text-gray-900">Your Events</h2>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors">
+                    <button
+                      onClick={() => setShowEventForm(true)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors"
+                    >
                       <Plus size={18} />
                       Create Event
                     </button>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {[
-                      {
-                        name: "Annual Tech Conference 2024",
-                        venue: "Safari Park Hotel, Nairobi",
-                        ticketsSold: 324,
-                        revenue: "1.2K",
-                      },
-                      {
-                        name: "Summer Music Festival",
-                        venue: "Uhuru Park, Nairobi",
-                        ticketsSold: 589,
-                        revenue: "2.4K",
-                      },
-                    ].map((event, idx) => (
-                      <EventCard key={idx} event={event} />
-                    ))}
-                  </div>
+                  {events.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {events.slice(0, 2).map((event) => (
+                        <EventCard key={event.id} event={event} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-2xl p-8 text-center border border-gray-200">
+                      <Calendar size={40} className="mx-auto mb-3 text-gray-400" />
+                      <p className="text-gray-600">No events yet. Create your first event!</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* RECENT ACTIVITY */}
                 <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 h-fit">
-                  <h3 className="font-bold text-gray-900 mb-4">Recent Activity</h3>
-                  <div className="space-y-2">
-                    {[
-                      {
-                        title: "Ticket Sold",
-                        description: "3 tickets sold to Tech Conference",
-                        time: "2 mins ago",
-                        icon: <CheckCircle className="w-5 h-5 text-green-600" />,
-                        bgColor: "bg-green-50",
-                      },
-                      {
-                        title: "Event Published",
-                        description: "Music Festival went live",
-                        time: "1 hour ago",
-                        icon: <AlertCircle className="w-5 h-5 text-blue-600" />,
-                        bgColor: "bg-blue-50",
-                      },
-                      {
-                        title: "Payout Processed",
-                        description: "KES 15,000 transferred",
-                        time: "3 hours ago",
-                        icon: <ArrowDownLeft className="w-5 h-5 text-emerald-600" />,
-                        bgColor: "bg-emerald-50",
-                      },
-                    ].map((activity, idx) => (
-                      <RecentActivityItem key={idx} activity={activity} />
-                    ))}
-                  </div>
+                  <h3 className="font-bold text-gray-900 mb-4">Recent Events</h3>
+                  {events.length > 0 ? (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {events.map((event) => (
+                        <div
+                          key={event.id}
+                          className="p-3 border-l-4 border-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition"
+                        >
+                          <p className="font-medium text-sm text-gray-900 line-clamp-1">{event.name}</p>
+                          <p className="text-xs text-gray-600">{event.date}</p>
+                          <p className="text-xs font-semibold text-blue-600 mt-1">
+                            {event.tickets_sold} tickets sold
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">No events created yet</p>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
           {activeTab === "events" && (
-            <div className="text-center py-12 text-gray-600">
-              <Calendar size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Events management coming soon</p>
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold text-gray-900">Your Events</h2>
+                <button
+                  onClick={() => setShowEventForm(true)}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
+                >
+                  <Plus size={18} />
+                  Create New Event
+                </button>
+              </div>
+
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader className="w-8 h-8 animate-spin text-indigo-600" />
+                </div>
+              ) : events.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {events.map((event) => (
+                    <div
+                      key={event.id}
+                      className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all border border-gray-100"
+                    >
+                      <div className="h-40 bg-gradient-to-br from-indigo-400 to-blue-500 relative">
+                        {event.image && (
+                          <img src={event.image} alt={event.name} className="w-full h-full object-cover" />
+                        )}
+                      </div>
+                      <div className="p-5">
+                        <h3 className="font-bold text-gray-900 line-clamp-2">{event.name}</h3>
+                        <p className="text-sm text-gray-600 mt-1">{event.venue}</p>
+                        <p className="text-xs text-gray-500 mt-1">{event.date}</p>
+
+                        <div className="grid grid-cols-2 gap-3 mt-4">
+                          <div className="bg-blue-50 rounded-lg p-2">
+                            <p className="text-xs text-gray-600">Sold</p>
+                            <p className="font-bold text-gray-900">{event.tickets_sold}</p>
+                          </div>
+                          <div className="bg-indigo-50 rounded-lg p-2">
+                            <p className="text-xs text-gray-600">Revenue</p>
+                            <p className="font-bold text-gray-900">KES {event.total_revenue.toLocaleString()}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            onClick={() => loadEventTickets(event.id)}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Eye size={16} />
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleDeleteEvent(event.id)}
+                            className="flex-1 bg-red-100 hover:bg-red-200 text-red-600 text-sm font-semibold py-2 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={16} className="mx-auto" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+                  <Calendar size={48} className="mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium text-gray-600">No events yet</p>
+                  <p className="text-sm text-gray-500 mt-2">Create your first event to get started</p>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === "tickets" && (
-            <div className="text-center py-12 text-gray-600">
-              <Ticket size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Ticket analytics coming soon</p>
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-900">Tickets & Attendees</h2>
+              
+              {events.length === 0 ? (
+                <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+                  <Ticket size={48} className="mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium text-gray-600">No events yet</p>
+                  <p className="text-sm text-gray-500 mt-2">Create an event to manage tickets</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
+                    {events.map((event) => (
+                      <button
+                        key={event.id}
+                        onClick={() => loadEventTickets(event.id)}
+                        className={`px-4 py-3 font-medium text-sm whitespace-nowrap border-b-2 transition ${
+                          selectedEventId === event.id
+                            ? "border-indigo-600 text-indigo-600"
+                            : "border-transparent text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        {event.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {ticketsForEvent.length > 0 ? (
+                    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200">
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Name</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Email</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Ticket Type</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Price</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ticketsForEvent.map((ticket) => (
+                            <tr key={ticket.id} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="px-6 py-4 text-sm text-gray-900">{ticket.user_name}</td>
+                              <td className="px-6 py-4 text-sm text-gray-600">{ticket.user_email}</td>
+                              <td className="px-6 py-4 text-sm text-gray-900 font-medium">{ticket.ticket_type}</td>
+                              <td className="px-6 py-4 text-sm text-gray-900">KES {ticket.price}</td>
+                              <td className="px-6 py-4 text-sm">
+                                <span
+                                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                                    ticket.confirmed
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-yellow-100 text-yellow-700"
+                                  }`}
+                                >
+                                  {ticket.confirmed ? "Confirmed" : "Pending"}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+                      <Ticket size={48} className="mx-auto mb-4 text-gray-400" />
+                      <p className="text-gray-600">No tickets for this event yet</p>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 
           {activeTab === "attendees" && (
-            <div className="text-center py-12 text-gray-600">
-              <Users size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Attendee management coming soon</p>
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-900">Attendees</h2>
+              
+              {events.length === 0 ? (
+                <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+                  <Users size={48} className="mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium text-gray-600">No events yet</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
+                    {events.map((event) => (
+                      <button
+                        key={event.id}
+                        onClick={() => loadEventTickets(event.id)}
+                        className={`px-4 py-3 font-medium text-sm whitespace-nowrap border-b-2 transition ${
+                          selectedEventId === event.id
+                            ? "border-indigo-600 text-indigo-600"
+                            : "border-transparent text-gray-600 hover:text-gray-900"
+                        }`}
+                      >
+                        {event.name}
+                      </button>
+                    ))}
+                  </div>
+
+                  {ticketsForEvent.length > 0 ? (
+                    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200">
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Name</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Email</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Check-in Status</th>
+                            <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Registered</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ticketsForEvent.filter(t => t.confirmed).map((ticket) => (
+                            <tr key={ticket.id} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="px-6 py-4 text-sm text-gray-900">{ticket.user_name}</td>
+                              <td className="px-6 py-4 text-sm text-gray-600">{ticket.user_email}</td>
+                              <td className="px-6 py-4 text-sm">
+                                <span
+                                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                                    ticket.used
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-yellow-100 text-yellow-700"
+                                  }`}
+                                >
+                                  {ticket.used ? "Checked In" : "Pending"}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-500">{ticket.created_at}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+                      <Users size={48} className="mx-auto mb-4 text-gray-400" />
+                      <p className="text-gray-600">No confirmed attendees for this event yet</p>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 
           {activeTab === "analytics" && (
-            <div className="text-center py-12 text-gray-600">
-              <TrendingUp size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Advanced analytics coming soon</p>
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-900">Analytics</h2>
+              
+              {events.length === 0 ? (
+                <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+                  <TrendingUp size={48} className="mx-auto mb-4 text-gray-400" />
+                  <p className="text-lg font-medium text-gray-600">No events yet</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {events.map((event) => (
+                    <div key={event.id} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-md">
+                      <h3 className="font-bold text-gray-900 mb-4">{event.name}</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <p className="text-sm text-gray-600">Total Revenue</p>
+                          <p className="text-2xl font-bold text-gray-900">KES {event.total_revenue.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Tickets Sold</p>
+                          <p className="text-2xl font-bold text-gray-900">{event.tickets_sold}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600">Ticket Tiers</p>
+                          <div className="mt-2 space-y-1">
+                            {event.ticket_prices.map((tp) => (
+                              <div key={tp.id} className="flex justify-between text-sm">
+                                <span className="text-gray-600">{tp.ticket_type}</span>
+                                <span className="font-medium text-gray-900">KES {tp.price}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === "payouts" && (
-            <div className="text-center py-12 text-gray-600">
-              <DollarSign size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Payout management coming soon</p>
+            <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+              <DollarSign size={48} className="mx-auto mb-4 text-gray-400" />
+              <p className="text-lg font-medium text-gray-600">Payout management coming soon</p>
             </div>
           )}
 
           {activeTab === "settings" && (
-            <div className="text-center py-12 text-gray-600">
-              <Settings size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">Settings coming soon</p>
+            <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+              <Settings size={48} className="mx-auto mb-4 text-gray-400" />
+              <p className="text-lg font-medium text-gray-600">Settings coming soon</p>
             </div>
           )}
         </div>
@@ -452,4 +803,4 @@ const OrgamiserDashboard = () => {
   );
 };
 
-export default OrgamiserDashboard;
+export default OrganizerDashboard;

@@ -187,6 +187,8 @@ export default function AdminDashboard() {
   const [success, setSuccess] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const [showEventModal, setShowEventModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [isEditingEvent, setIsEditingEvent] = useState(false);
   const [eventForm, setEventForm] = useState({ 
     name: "", 
     date: "", 
@@ -315,6 +317,78 @@ export default function AdminDashboard() {
       console.error("Error creating event:", err);
       setError("Error creating event");
     }
+  };
+
+  const handleEditEvent = (event) => {
+    setSelectedEvent(event);
+    setEventForm({
+      name: event.name,
+      date: event.date,
+      venue: event.venue,
+      description: event.description || "",
+      image: event.image || "",
+      ticket_prices: event.ticket_prices || [{ ticket_type: "General", price: 1000 }],
+    });
+    setIsEditingEvent(true);
+    setShowEventModal(true);
+  };
+
+  const handleUpdateEvent = async () => {
+    try {
+      const response = await fetch(`${API_URL}/events/${selectedEvent.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+        body: JSON.stringify(eventForm),
+      });
+
+      if (response.ok) {
+        setSuccess("Event updated successfully!");
+        setShowEventModal(false);
+        setIsEditingEvent(false);
+        setSelectedEvent(null);
+        fetchDashboardData();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to update event");
+      }
+    } catch (err) {
+      console.error("Error updating event:", err);
+      setError("Error updating event");
+    }
+  };
+
+  const handleDeleteEvent = async (event) => {
+    if (!confirm(`Are you sure you want to delete "${event.name}"? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/events/${event.id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.accessToken}`,
+        },
+      });
+
+      if (response.ok) {
+        setSuccess("Event deleted successfully!");
+        fetchDashboardData();
+      } else {
+        const errorData = await response.json();
+        setError(errorData.error || "Failed to delete event");
+      }
+    } catch (err) {
+      console.error("Error deleting event:", err);
+      setError("Error deleting event");
+    }
+  };
+
+  const handleViewEvent = (event) => {
+    router.push(`/event/${event.id}`);
   };
 
   if (status === "loading" || loading) {
@@ -465,9 +539,9 @@ export default function AdminDashboard() {
                   venue: e.venue,
                 }))}
                 actions={[
-                  { label: "View", icon: EyeIcon, onClick: (row) => console.log(row) },
-                  { label: "Edit", icon: PencilIcon, onClick: (row) => console.log(row) },
-                  { label: "Delete", icon: TrashIcon, onClick: (row) => console.log(row) },
+                  { label: "View", icon: EyeIcon, onClick: (row) => handleViewEvent(row) },
+                  { label: "Edit", icon: PencilIcon, onClick: (row) => handleEditEvent(events.find(e => e.id === row.id)) },
+                  { label: "Delete", icon: TrashIcon, onClick: (row) => handleDeleteEvent(events.find(e => e.id === row.id)) },
                 ]}
               />
             ) : (
@@ -558,12 +632,26 @@ export default function AdminDashboard() {
       {/* Create Event Modal */}
       <Modal
         isOpen={showEventModal}
-        title="Create New Event"
-        onClose={() => setShowEventModal(false)}
-        onSubmit={handleCreateEvent}
-        submitLabel="Create Event"
+        title={isEditingEvent ? "Edit Event" : "Create New Event"}
+        onClose={() => {
+          setShowEventModal(false);
+          setIsEditingEvent(false);
+          setSelectedEvent(null);
+          setEventForm({ 
+            name: "", 
+            date: "", 
+            venue: "", 
+            description: "",
+            ticket_prices: [
+              { ticket_type: "General", price: 1000 },
+              { ticket_type: "VIP", price: 2500 },
+            ]
+          });
+        }}
+        onSubmit={isEditingEvent ? handleUpdateEvent : handleCreateEvent}
+        submitLabel={isEditingEvent ? "Update Event" : "Create Event"}
       >
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-96 overflow-y-auto">
           <input
             type="text"
             placeholder="Event name"
@@ -591,6 +679,56 @@ export default function AdminDashboard() {
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             rows="3"
           />
+          <input
+            type="url"
+            placeholder="Image URL"
+            value={eventForm.image || ''}
+            onChange={(e) => setEventForm({ ...eventForm, image: e.target.value })}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+
+          {/* Ticket Prices Section */}
+          <div className="border-t border-gray-300 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="font-semibold text-gray-900">Ticket Tiers</h4>
+              <button
+                type="button"
+                onClick={addTicketPrice}
+                className="text-sm px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
+              >
+                <PlusIcon className="w-4 h-4 inline mr-1" />
+                Add Tier
+              </button>
+            </div>
+            <div className="space-y-3">
+              {eventForm.ticket_prices.map((price, index) => (
+                <div key={index} className="flex gap-2 items-end">
+                  <input
+                    type="text"
+                    placeholder="Ticket tier (e.g., General, VIP)"
+                    value={price.ticket_type}
+                    onChange={(e) => updateTicketPrice(index, 'ticket_type', e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Price (KSH)"
+                    value={price.price}
+                    onChange={(e) => updateTicketPrice(index, 'price', e.target.value)}
+                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeTicketPrice(index)}
+                    className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                    title="Remove tier"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </Modal>
     </div>

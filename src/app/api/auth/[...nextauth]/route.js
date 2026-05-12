@@ -16,12 +16,11 @@ const authOptions = {
 
       async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
-          console.error("❌ Missing credentials");
           throw new Error("Email and password required");
         }
 
         try {
-          console.log("🔍 Attempting login for:", credentials.email);
+
           
           // ⏱️ SET TIMEOUT TO PREVENT HANGING
           const controller = new AbortController();
