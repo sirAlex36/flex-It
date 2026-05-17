@@ -6,249 +6,292 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 export default function Home() {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
   const [events, setEvents] = useState([]);
   const [search, setSearch] = useState("");
   const [filtered, setFiltered] = useState([]);
 
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [ticketCode, setTicketCode] = useState("");
+  const [verificationResult, setVerificationResult] = useState(null);
+
+  // FETCH EVENTS
   useEffect(() => {
-    fetch("http://localhost:3002/events")
-      .then((res) => res.json())
-      .then((data) => {
-        setEvents(data);
-        setFiltered(data);
-      })
-      .catch((err) => console.error("Error fetching events:", err));
-  }, []);
+    fetchEvents();
+  }, [API_URL]);
 
-  const handleSearch = () => {
-    const results = events.filter(
-      (event) =>
-        event.name.toLowerCase().includes(search.toLowerCase()) ||
-        event.location.toLowerCase().includes(search.toLowerCase())
-    );
+  // SEARCH - refetch when search changes
+  useEffect(() => {
+    const debounceTimer = setTimeout(() => {
+      fetchEvents();
+    }, 300); // Debounce search
 
-    setFiltered(results);
+    return () => clearTimeout(debounceTimer);
+  }, [search]);
+
+  const fetchEvents = async () => {
+    try {
+      const url = search 
+        ? `${API_URL}/events?search=${encodeURIComponent(search)}`
+        : `${API_URL}/events`;
+      
+      const res = await fetch(url);
+      const data = await res.json();
+      setEvents(data);
+      setFiltered(data);
+    } catch (err) {
+      console.error("Error fetching events:", err);
+    }
+  };
+
+  // VERIFY TICKET (REAL READY)
+  const handleVerifyTicket = async () => {
+    if (!ticketCode.trim()) {
+      setVerificationResult({
+        success: false,
+        message: "Please enter a ticket code",
+      });
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/verify-ticket`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ code: ticketCode }),
+      });
+
+      const data = await res.json();
+      setVerificationResult(data);
+    } catch (error) {
+      setVerificationResult({
+        success: false,
+        message: "Verification failed. Try again.",
+      });
+    }
   };
 
   return (
     <>
       <Header />
-      <main className="bg-gray-50">
 
-        {/* HERO SECTION */}
+      <main className="bg-white">
 
-        <section className="relative h-screen flex items-center justify-center text-center overflow-hidden pt-16">
-
+        {/* HERO */}
+        <section className="relative h-[440px] overflow-hidden rounded-3xl mx-4 md:mx-8 lg:mx-16 mt-8 shadow-xl">
           <img
-            src="https://images.unsplash.com/photo-1501281668745-f7f57925c3b4"
+            src="https://images.unsplash.com/photo-1541701494587-cb58502866ab"
             className="absolute inset-0 w-full h-full object-cover"
-            alt="events"
           />
+          <div className="absolute inset-0 bg-black/50"></div>
 
-          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/70"></div>
-
-          <div className="relative z-10 text-white max-w-3xl px-4">
-
-            <div className="mb-6">
-              <span className="inline-block px-4 py-2 bg-blue-500/20 border border-blue-400 text-blue-300 rounded-full text-sm font-semibold backdrop-blur-sm">
-                ✨ Trending Events Near You
-              </span>
-            </div>
-
-            <h1 className="text-6xl md:text-7xl font-bold mb-6 leading-tight">
-              Discover & Book Amazing Events
+          <div className="relative z-10 flex flex-col items-center justify-center h-full text-center px-4">
+            <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
+              Discover events in your city
             </h1>
-
-          <p className="text-xl md:text-2xl mb-12 text-gray-100 leading-relaxed">
-            Experience unforgettable moments. Browse concerts, festivals, conferences, and exclusive events happening around you.
-          </p>
-
-          <div className="flex flex-col md:flex-row justify-center gap-3">
 
             <input
               type="text"
-              placeholder="🔍 Search events, artists, venues..."
+              placeholder="Search events, venues..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="px-6 py-4 rounded-lg text-gray-900 w-full md:w-80 font-medium shadow-lg placeholder-gray-500"
+              className="w-full max-w-xl px-6 py-4 rounded-full text-lg shadow-xl focus:outline-none"
             />
+          </div>
+        </section>
+
+        {/* QUICK ACTIONS */}
+        <section className="py-10 border-b">
+          <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 px-4">
+
+            <Link href="/event" className="text-center hover:bg-gray-50 p-4 rounded-lg">
+              🎪
+              <p className="text-sm mt-2">Browse Events</p>
+            </Link>
+
+            <Link href="/contact" className="text-center hover:bg-gray-50 p-4 rounded-lg">
+              🎯
+              <p className="text-sm mt-2">Host Events</p>
+            </Link>
 
             <button
-              onClick={handleSearch}
-              className="bg-white text-blue-600 hover:bg-gray-100 px-8 py-4 rounded-lg font-bold transition shadow-lg"
+              onClick={() => setShowVerifyModal(true)}
+              className="text-center hover:bg-gray-50 p-4 rounded-lg"
             >
-              Search
+              🎫
+              <p className="text-sm mt-2">Verify Ticket</p>
             </button>
 
-          </div>
-
-        </div>
-
-      </section>
-
-      {/* FEATURED EVENTS */}
-
-      <section className="max-w-7xl mx-auto py-20 px-4 sm:px-6 lg:px-8">
-
-        <div className="mb-12">
-          <h2 className="text-5xl font-bold mb-4">
-            Featured Events
-          </h2>
-          <p className="text-xl text-gray-600">
-            Handpicked events that are trending right now
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-
-          {filtered.slice(0, 6).map((event) => (
-
-            <div
-              key={event.id}
-              className="bg-white rounded-xl shadow-md hover:shadow-2xl transition overflow-hidden group"
-            >
-
-              <img
-                src={event.image || "https://images.unsplash.com/photo-1492684223066-81342ee5ff30"}
-                alt={event.name}
-                className="h-48 w-full object-cover group-hover:scale-110 transition duration-300"
-              />
-
-              <div className="p-5">
-
-                <h3 className="font-semibold text-lg mb-2">
-                  {event.name}
-                </h3>
-
-                <p className="text-gray-500 text-sm mb-2">
-                  📍 {event.location}
-                </p>
-
-                <p className="text-gray-500 text-sm mb-4">
-                  📅 {event.date}
-                </p>
-
-                <Link href={`/event/${event.id}`}>
-
-                  <button className="bg-blue-600 text-white px-4 py-3 rounded-lg w-full hover:bg-blue-700 transition font-semibold shadow-md">
-                    View Details →
-                  </button>
-
-                </Link>
-
-              </div>
-
-            </div>
-
-          ))}
-
-        </div>
-
-      </section>
-
-      {/* WHY CHOOSE FLEX-IT */}
-
-      <section className="py-20 bg-white">
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
-          
-
-          {/* Additional Benefits */}
-          <div className="mt-16 grid md:grid-cols-2 gap-8">
-            <div className="flex gap-4 bg-gray-50 p-6 rounded-lg">
-              <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-blue-600 text-white">
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-lg font-semibold">Real-time Availability</h4>
-                <p className="text-gray-600 text-sm mt-1">See exactly which seats are available before you buy</p>
-              </div>
-            </div>
-
-            <div className="flex gap-4 bg-gray-50 p-6 rounded-lg">
-              <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-blue-600 text-white">
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-lg font-semibold">24/7 Customer Support</h4>
-                <p className="text-gray-600 text-sm mt-1">Our dedicated team is always ready to help you</p>
-              </div>
-            </div>
-
-            <div className="flex gap-4 bg-gray-50 p-6 rounded-lg">
-              <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-blue-600 text-white">
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-lg font-semibold">Smart Recommendations</h4>
-                <p className="text-gray-600 text-sm mt-1">Personalized event suggestions based on your interests</p>
-              </div>
-            </div>
-
-            <div className="flex gap-4 bg-gray-50 p-6 rounded-lg">
-              <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-blue-600 text-white">
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-lg font-semibold">Multiple Payment Options</h4>
-                <p className="text-gray-600 text-sm mt-1">Pay your way with credit cards, e-wallets, and more</p>
-              </div>
-            </div>
+            <Link href="/vendors" className="text-center hover:bg-gray-50 p-4 rounded-lg">
+              🏪
+              <p className="text-sm mt-2">Marketplace</p>
+            </Link>
 
           </div>
+        </section>
 
-        </div>
+        {/* EVENTS */}
+        <section className="py-16 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4">
 
-      </section>
+            <h2 className="text-3xl font-bold text-center mb-10">
+              Featured Events
+            </h2>
 
-      {/* CTA */}
+            {filtered.length === 0 ? (
+              <div className="text-center text-gray-500 py-10">
+                No events found. Try a different search.
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-3 gap-6">
+                {filtered.slice(0, 6).map((event) => (
+                  <div
+                    key={event.id}
+                    className="bg-white rounded-xl shadow-lg hover:shadow-2xl hover:-translate-y-2 transition-all duration-300 overflow-hidden group"
+                  >
+                    <div className="relative">
+                      <img
+                        src={
+                          event.image ||
+                          "https://images.unsplash.com/photo-1492684223066-81342ee5ff30"
+                        }
+                        className="h-48 w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute top-3 right-3 bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                        HOT
+                      </div>
+                    </div>
 
-      <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-20 text-center">
+                    <div className="p-6">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-xl text-gray-900 group-hover:text-blue-600 transition-colors">
+                          {event.name}
+                        </h3>
+                        <span className="text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-1 rounded-full font-semibold">
+                          Experience
+                        </span>
+                      </div>
 
-        <div className="max-w-4xl mx-auto px-4">
-          <h2 className="text-5xl font-bold mb-6">
-            Ready to Experience Your Next Adventure?
+                      <div className="space-y-1 mb-3">
+                        <p className="text-gray-600 text-sm flex items-center">
+                          <span className="mr-2">📍</span> {event.venue}
+                        </p>
+                        <p className="text-gray-600 text-sm flex items-center">
+                          <span className="mr-2">📅</span> {new Date(event.date).toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </p>
+                      </div>
+
+                      <p className="text-gray-700 text-sm mb-4 line-clamp-3 leading-relaxed">
+                        {event.description || 
+                          "Join us for an unforgettable experience filled with excitement, networking, and memories that will last a lifetime. Don't miss out!"}
+                      </p>
+
+                      <div className="flex justify-between items-center">
+                        <div className="flex flex-col">
+                          <span className="text-xs text-gray-500">Starting from</span>
+                          <span className="font-bold text-2xl text-green-600">
+                            KSh {event.ticket_prices?.length > 0 
+                              ? Math.min(...event.ticket_prices.map(tp => tp.price))
+                              : '1000'}
+                          </span>
+                        </div>
+
+                        <Link href={`/event/${event.id}`}>
+                          <button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 shadow-lg">
+                            Get Tickets
+                          </button>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="text-center mt-10">
+              <Link href="/event">
+                <button className="bg-black text-white px-6 py-3 rounded-lg">
+                  View All Events
+                </button>
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA */}
+        <section className="bg-black text-white py-16 text-center">
+          <h2 className="text-3xl font-bold mb-4">
+            Ready to explore events?
           </h2>
 
-          <p className="text-xl text-blue-100 mb-10">
-            Browse thousands of events, from intimate gatherings to massive festivals. Join millions of happy attendees worldwide.
-          </p>
-
-          <div className="flex flex-col md:flex-row gap-4 justify-center">
-            <Link href="/event">
-              <button className="bg-white text-blue-600 px-8 py-4 rounded-lg font-bold hover:bg-gray-100 transition shadow-lg inline-block">
-                🔍 Browse All Events
-              </button>
-            </Link>
-            <Link href="/sign-up">
-              <button className="bg-blue-500 text-white px-8 py-4 rounded-lg font-bold hover:bg-blue-400 transition border-2 border-white inline-block">
-                ✨ Create Account
-              </button>
-            </Link>
-          </div>
-        </div>
-
-      </section>
+          <Link href="/sign-up">
+            <button className="bg-white text-black px-6 py-3 rounded-lg font-bold">
+              Get Started
+            </button>
+          </Link>
+        </section>
 
       </main>
+
       <Footer />
+
+      {/* VERIFY MODAL */}
+      {showVerifyModal && (
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-xl w-full max-w-md">
+
+            <h3 className="text-xl font-bold mb-4">Verify Ticket</h3>
+
+            <input
+              value={ticketCode}
+              onChange={(e) => setTicketCode(e.target.value)}
+              placeholder="Enter ticket code"
+              className="w-full border p-2 rounded mb-4"
+            />
+
+            {verificationResult && (
+              <div
+                className={`p-2 mb-3 rounded ${
+                  verificationResult.success
+                    ? "bg-green-100 text-green-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {verificationResult.message}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleVerifyTicket}
+                className="flex-1 bg-blue-600 text-white py-2 rounded"
+              >
+                Verify
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowVerifyModal(false);
+                  setTicketCode("");
+                  setVerificationResult(null);
+                }}
+                className="flex-1 bg-gray-300 py-2 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </>
   );
 }

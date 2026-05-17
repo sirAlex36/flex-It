@@ -1,0 +1,17 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Calendar base -->
+  <rect x="6" y="8" width="28" height="24" rx="3" fill="#3B82F6" stroke="#1E40AF" stroke-width="2"/>
+  <!-- Calendar header -->
+  <rect x="6" y="8" width="28" height="8" fill="#1E40AF"/>
+  <!-- Calendar dots for days -->
+  <circle cx="12" cy="18" r="1.5" fill="#FFFFFF"/>
+  <circle cx="18" cy="18" r="1.5" fill="#FFFFFF"/>
+  <circle cx="24" cy="18" r="1.5" fill="#FFFFFF"/>
+  <circle cx="30" cy="18" r="1.5" fill="#FFFFFF"/>
+  <circle cx="12" cy="24" r="1.5" fill="#FFFFFF"/>
+  <circle cx="18" cy="24" r="1.5" fill="#FFFFFF"/>
+  <circle cx="24" cy="24" r="1.5" fill="#FFFFFF"/>
+  <!-- Flexible wave line representing flexibility -->
+  <path d="M8 14 Q14 12 20 14 Q26 16 32 14" stroke="#FFFFFF" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg></content>
+<parameter name="filePath">/home/alex/Moringa/Project/flex-It/public/logo.svg
