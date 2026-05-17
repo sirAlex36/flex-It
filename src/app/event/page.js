@@ -113,7 +113,7 @@ export default function UpcomingEvents() {
                       <span className="text-blue-600 font-bold text-lg">
                         {minPrice
                           ? `Ksh ${minPrice.toLocaleString()}`
-                          : "Free"}
+                          : "Exlcusive"}
                       </span>
 
                       <button
@@ -123,7 +123,7 @@ export default function UpcomingEvents() {
                         }}
                         className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition"
                       >
-                        Book
+                        Book now
                       </button>
                     </div>
                   </div>

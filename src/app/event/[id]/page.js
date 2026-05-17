@@ -2,36 +2,34 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useSession, signIn } from "next-auth/react";
-import { Calendar, MapPin, Clock, Users, CreditCard, Shield, CheckCircle, ArrowLeft, Ticket, Sparkles } from "lucide-react";
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-const DEFAULT_CAPACITY_BY_TIER = {
-  vip: 50,
-  premium: 100,
-  general: 200,
-  standard: 180,
-};
+import { useSession } from "next-auth/react";
+import { Calendar, MapPin, Clock, Ticket, CreditCard, CheckCircle, ArrowLeft, Sparkles } from "lucide-react";
 
-const getTierCapacity = (ticketType) => {
-  if (!ticketType) return 150;
-  const key = ticketType.toLowerCase();
-  if (key.includes("vip")) return 50;
-  if (key.includes("premium")) return 100;
-  if (key.includes("general")) return 200;
-  if (key.includes("standard")) return 180;
-  return 150;
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+const formatDate = (date) => {
+  try {
+    return new Date(date).toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return date;
+  }
 };
 
 export default function EventDetailsPage() {
   const { id } = useParams();
   const router = useRouter();
   const { data: session } = useSession();
-  
 
   const [event, setEvent] = useState(null);
+  const [availability, setAvailability] = useState({ by_tier: {} });
   const [bookingConfirmation, setBookingConfirmation] = useState(null);
   const [loading, setLoading] = useState(true);
-
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState("");
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -39,78 +37,74 @@ export default function EventDetailsPage() {
     phone: "",
     ticketType: "",
     quantity: 1,
-    paymentMethod: "card",
+    paymentMethod: "mpesa",
     terms: false,
   });
 
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [mpesaStatus, setMpesaStatus] = useState("");
-
-  // Fetch event with ticket information
   useEffect(() => {
+    if (!id) return;
+
     const fetchEvent = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`${API_URL}/events/${id}`);
-        const data = await res.json();
-        
-        // Transform ticket_prices array to tickets object
-        const tickets = {};
-        if (data.ticket_prices && Array.isArray(data.ticket_prices)) {
-          data.ticket_prices.forEach((tp) => {
-            tickets[tp.ticket_type] = {
-              id: tp.id,
-              price: tp.price,
-              available: 100, // Default availability
-            };
-          });
+        const [eventRes, availabilityRes] = await Promise.all([
+          fetch(`${API_URL}/events/${id}`),
+          fetch(`${API_URL}/events/${id}/availability`),
+        ]);
+
+        if (eventRes.ok) {
+          const eventData = await eventRes.json();
+          setEvent(eventData);
+
+          const nameParts = session?.user?.name?.split(" ") || [];
+          setFormData((prev) => ({
+            ...prev,
+            ticketType: eventData.ticket_prices?.[0]?.ticket_type || "",
+            firstName: prev.firstName || nameParts[0] || "",
+            lastName: prev.lastName || nameParts.slice(1).join(" ") || "",
+            email: prev.email || session?.user?.email || "",
+          }));
         }
-        
-        setEvent({ ...data, tickets });
+
+        if (availabilityRes.ok) {
+          const availabilityData = await availabilityRes.json();
+          setAvailability({ by_tier: availabilityData.by_tier || {} });
+        }
       } catch (err) {
-        console.error("Error fetching event:", err);
+        console.error("Error loading event details:", err);
+        setError("Unable to load event details at this time.");
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) {
-      fetchEvent();
-    }
-  }, [id]);
+    fetchEvent();
+  }, [id, session]);
 
   const handleQuantityChange = (delta) => {
-    const newQuantity = formData.quantity + delta;
-    if (newQuantity >= 1 && newQuantity <= 10) {
-      setFormData({ ...formData, quantity: newQuantity });
-    }
+    setFormData((prev) => ({
+      ...prev,
+      quantity: Math.max(1, Math.min(10, prev.quantity + delta)),
+    }));
   };
 
   const handleSubmit = async () => {
-    // Check if user is logged in
-    if (!session) {
-      alert("Please login to book tickets");
-      await signIn();
-      return;
-    }
-
     if (!formData.ticketType) {
-      alert("Please select a ticket type");
-      return;
-    }
-    if (!formData.email) {
-      alert("Please enter your email");
-      return;
-    }
-    if (!formData.phone) {
-      alert("Please enter your phone number");
-      return;
-    }
-    if (!formData.terms) {
-      alert("Please accept the terms and conditions");
+      setError("Please select a ticket tier.");
       return;
     }
 
+    if (!formData.email || !formData.phone || !formData.firstName || !formData.lastName) {
+      setError("Please complete your contact details.");
+      return;
+    }
+
+    if (!formData.terms) {
+      setError("You must accept the terms and conditions.");
+      return;
+    }
+
+    setError("");
     setIsProcessing(true);
 
     try {
@@ -118,18 +112,18 @@ export default function EventDetailsPage() {
         "Content-Type": "application/json",
       };
 
-      // Add JWT token from session if available
       if (session?.accessToken) {
         headers.Authorization = `Bearer ${session.accessToken}`;
       }
 
-      const res = await fetch(`${API_URL}/tickets`, {
+      const response = await fetch(`${API_URL}/tickets`, {
         method: "POST",
         headers,
         body: JSON.stringify({
           event_id: id,
           ticket_type: formData.ticketType,
           quantity: formData.quantity,
+          payment_method: formData.paymentMethod,
           email: formData.email,
           phone: formData.phone,
           first_name: formData.firstName,
@@ -137,78 +131,119 @@ export default function EventDetailsPage() {
         }),
       });
 
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Booking failed");
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || "Booking failed. Please try again.");
       }
 
-      const data = await res.json();
-
+      const data = await response.json();
       setBookingConfirmation({
         id: data.id,
+        ticketType: data.ticket_type,
+        quantity: data.quantity,
         amount: data.price * formData.quantity,
-        ticketType: formData.ticketType,
-        quantity: formData.quantity,
         eventName: event?.name,
       });
 
-      alert("Booking successful! Proceed to payment.");
+      // Initiate M-Pesa STK Push for payment
+      try {
+        const payResp = await fetch(`${API_URL}/mpesa/stk-push`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            phone: formData.phone,
+            amount: data.price * formData.quantity,
+            ticket_id: data.id,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+          }),
+        });
+
+        if (payResp.ok) {
+          const payData = await payResp.json().catch(() => ({}));
+          setBookingConfirmation((prev) => ({ ...prev, stkRequest: payData.request_id, phone: payData.phone }));
+        } else {
+          console.warn("Failed to initiate STK push");
+        }
+      } catch (err) {
+        console.warn("STK push error:", err);
+      }
     } catch (err) {
       console.error(err);
-      alert(err.message || "Booking failed. Please try again.");
+      setError(err.message || "Booking failed. Please try again.");
+    } finally {
+      setIsProcessing(false);
     }
-
-    setIsProcessing(false);
   };
 
-  const selected = event?.tickets?.[formData.ticketType];
-  const total = selected ? selected.price * formData.quantity : 0;
-  const availableTickets = selected ? selected.available : 0;
+  const selectedTier = event?.ticket_prices?.find((tier) => tier.ticket_type === formData.ticketType);
+  const selectedAvailability = availability.by_tier?.[formData.ticketType] || {};
+  const availableTickets = selectedAvailability.remaining ?? selectedAvailability.capacity ?? 0;
+  const total = selectedTier ? selectedTier.price * formData.quantity : 0;
 
-  // Premium Confirmation Screen
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-14 w-14 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-white">Loading event info…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!event) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center px-4">
+        <div className="max-w-md text-center bg-white/10 border border-white/10 rounded-3xl p-8 backdrop-blur-xl text-white">
+          <p className="text-lg font-semibold">Event not found.</p>
+          <button
+            onClick={() => router.back()}
+            className="mt-6 px-5 py-3 rounded-full bg-yellow-500 text-black font-semibold"
+          >
+            Go back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (bookingConfirmation) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center px-4">
-        <div className="relative max-w-md w-full">
-          {/* Animated background effect */}
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 flex items-center justify-center px-4 py-12">
+        <div className="relative max-w-lg w-full">
           <div className="absolute inset-0 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-3xl blur-3xl"></div>
-          
           <div className="relative bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 text-center shadow-2xl">
             <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center justify-center">
               <CheckCircle className="w-10 h-10 text-white" />
             </div>
-            
             <h1 className="text-3xl font-bold text-white mb-2">Booking Confirmed!</h1>
-            <p className="text-gray-300 mb-6">Your tickets have been reserved</p>
-            
-            <div className="bg-white/5 rounded-2xl p-4 mb-6 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Event</span>
+            <p className="text-gray-300 mb-6">Your tickets are reserved and awaiting payment confirmation.</p>
+            <div className="bg-white/5 rounded-2xl p-4 mb-6 space-y-3 text-left">
+              <div className="flex justify-between text-sm text-gray-300">
+                <span>Event</span>
                 <span className="text-white font-medium">{bookingConfirmation.eventName}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Ticket Type</span>
-                <span className="text-white font-medium capitalize">{bookingConfirmation.ticketType}</span>
+              <div className="flex justify-between text-sm text-gray-300">
+                <span>Ticket Type</span>
+                <span className="text-white font-medium">{bookingConfirmation.ticketType}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Quantity</span>
+              <div className="flex justify-between text-sm text-gray-300">
+                <span>Quantity</span>
                 <span className="text-white font-medium">{bookingConfirmation.quantity}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Ticket ID</span>
+              <div className="flex justify-between text-sm text-gray-300">
+                <span>Ticket ID</span>
                 <span className="text-white font-mono text-xs">#{bookingConfirmation.id}</span>
               </div>
               <div className="border-t border-white/10 pt-3 flex justify-between">
-                <span className="text-gray-400">Total Paid</span>
-                <span className="text-2xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">
-                  Ksh {bookingConfirmation.amount.toLocaleString()}
-                </span>
+                <span className="text-gray-300">Estimated total</span>
+                <span className="text-2xl font-bold text-white">Ksh {total.toLocaleString()}</span>
               </div>
             </div>
-
             <div className="space-y-3">
               <button
-                onClick={() => router.push("/event")}
+                onClick={() => router.push("/dashboard/user")}
                 className="w-full bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-semibold px-6 py-3 rounded-xl hover:shadow-lg transition-all"
               >
                 Browse More Events
@@ -217,7 +252,7 @@ export default function EventDetailsPage() {
                 onClick={() => window.print()}
                 className="w-full bg-white/10 text-white px-6 py-3 rounded-xl hover:bg-white/20 transition-all"
               >
-                Download Ticket
+                Print Booking Details
               </button>
             </div>
           </div>
@@ -226,25 +261,11 @@ export default function EventDetailsPage() {
     );
   }
 
-  if (loading || !event) return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="animate-pulse flex flex-col items-center">
-        <div className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-white mt-4">Loading event details...</p>
-      </div>
-    </div>
-  );
-
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900">
-      {/* Hero Section */}
       <div className="relative h-[50vh] overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent z-10"></div>
-        <img
-          src={event.image}
-          alt={event.name}
-          className="w-full h-full object-cover"
-        />
+        <img src={event.image} alt={event.name} className="w-full h-full object-cover" />
         <button
           onClick={() => router.back()}
           className="absolute top-6 left-6 z-20 bg-black/50 backdrop-blur-md text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-black/70 transition-all"
@@ -255,89 +276,88 @@ export default function EventDetailsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 relative z-20 pb-20">
+        {error && (
+          <div className="mb-6 rounded-3xl border border-red-200 bg-red-50 p-4 text-red-800">
+            {error}
+          </div>
+        )}
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* LEFT COLUMN - Event Info */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Event Header */}
             <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
               <h1 className="text-4xl font-bold text-white mb-4">{event.name}</h1>
               <div className="flex flex-wrap gap-4 text-gray-300">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-yellow-400" />
-                  <span>March 15, 2024</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-yellow-400" />
-                  <span>7:00 PM</span>
+                  <span>{formatDate(event.date)}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-yellow-400" />
-                  <span>Nairobi, Kenya</span>
+                  <span>{event.venue}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-yellow-400" />
+                  <span>Instant guest checkout</span>
                 </div>
               </div>
               <p className="text-gray-300 mt-4 leading-relaxed">{event.description}</p>
             </div>
 
-            {/* Ticket Tiers */}
             <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
               <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <Ticket className="w-5 h-5 text-yellow-400" />
-                Select Your Ticket
+                Pick your ticket
               </h2>
               <div className="space-y-3">
                 {event.ticket_prices.map((tier) => {
                   const isSelected = formData.ticketType === tier.ticket_type;
-                  const available = availability.perTier[tier.ticket_type]
-                    ? availability.perTier[tier.ticket_type].capacity - availability.perTier[tier.ticket_type].sold
-                    : 0;
+                  const tierAvailability = availability.by_tier?.[tier.ticket_type] || {};
+                  const available = tierAvailability.remaining ?? tierAvailability.capacity ?? 0;
                   const isSoldOut = available === 0;
 
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={tier.id}
-                      onClick={() => !isSoldOut && setFormData({ ...formData, ticketType: tier.ticket_type, quantity: 1 })}
-                      className={`relative group cursor-pointer transition-all duration-300 rounded-xl p-4 ${
+                      onClick={() => !isSoldOut && setFormData((prev) => ({ ...prev, ticketType: tier.ticket_type, quantity: 1 }))}
+                      className={`relative w-full text-left group transition-all duration-300 rounded-xl p-4 ${
                         isSelected
                           ? "bg-gradient-to-r from-yellow-400 to-orange-500 shadow-lg shadow-yellow-500/25"
                           : isSoldOut
                           ? "bg-white/5 opacity-50 cursor-not-allowed"
                           : "bg-white/5 hover:bg-white/10 border border-white/10"
                       }`}
+                      disabled={isSoldOut}
                     >
                       <div className="flex justify-between items-center">
                         <div>
                           <h3 className={`font-bold text-lg ${isSelected ? "text-black" : "text-white"}`}>
-                            {tier.ticket_type.toUpperCase()}
+                            {tier.ticket_type}
                           </h3>
                           <p className={`text-sm ${isSelected ? "text-black/70" : "text-gray-400"}`}>
-                            {available} tickets left
+                            {available} tickets remaining
                           </p>
                         </div>
                         <div className="text-right">
                           <p className={`text-2xl font-bold ${isSelected ? "text-black" : "text-white"}`}>
                             Ksh {tier.price.toLocaleString()}
                           </p>
-                          {isSoldOut && (
-                            <span className="text-xs text-red-400">Sold Out</span>
-                          )}
+                          {isSoldOut && <span className="text-xs text-red-400">Sold Out</span>}
                         </div>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             </div>
           </div>
 
-          {/* RIGHT COLUMN - Checkout */}
           <div className="lg:sticky lg:top-24 h-fit">
             <div className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl overflow-hidden">
               <div className="bg-gradient-to-r from-yellow-400 to-orange-500 p-4">
                 <h2 className="text-xl font-bold text-black text-center">Complete Your Booking</h2>
               </div>
-              
+
               <div className="p-6 space-y-5">
-                {/* Name Fields */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm text-gray-300 mb-1">First Name</label>
@@ -346,7 +366,7 @@ export default function EventDetailsPage() {
                       placeholder="John"
                       className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
                       value={formData.firstName}
-                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, firstName: e.target.value }))}
                     />
                   </div>
                   <div>
@@ -356,12 +376,11 @@ export default function EventDetailsPage() {
                       placeholder="Doe"
                       className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
                       value={formData.lastName}
-                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
                     />
                   </div>
                 </div>
 
-                {/* Email */}
                 <div>
                   <label className="block text-sm text-gray-300 mb-1">Email Address</label>
                   <input
@@ -369,11 +388,10 @@ export default function EventDetailsPage() {
                     placeholder="you@example.com"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
                   />
                 </div>
 
-                {/* Phone */}
                 <div>
                   <label className="block text-sm text-gray-300 mb-1">Phone Number</label>
                   <input
@@ -381,11 +399,10 @@ export default function EventDetailsPage() {
                     placeholder="+254 700 000000"
                     className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
                   />
                 </div>
 
-                {/* Quantity Selector */}
                 {formData.ticketType && (
                   <div>
                     <label className="block text-sm text-gray-300 mb-2">Quantity</label>
@@ -397,9 +414,7 @@ export default function EventDetailsPage() {
                       >
                         -
                       </button>
-                      <span className="text-2xl font-bold text-white w-12 text-center">
-                        {formData.quantity}
-                      </span>
+                      <span className="text-2xl font-bold text-white w-12 text-center">{formData.quantity}</span>
                       <button
                         onClick={() => handleQuantityChange(1)}
                         className="w-10 h-10 rounded-full bg-white/10 text-white hover:bg-white/20 transition-all disabled:opacity-50"
@@ -407,20 +422,17 @@ export default function EventDetailsPage() {
                       >
                         +
                       </button>
-                      <span className="text-sm text-gray-400 ml-2">
-                        {availableTickets} available
-                      </span>
+                      <span className="text-sm text-gray-400 ml-2">{availableTickets} available</span>
                     </div>
                   </div>
                 )}
 
-                {/* Payment Method */}
                 <div>
                   <label className="block text-sm text-gray-300 mb-2">Payment Method</label>
                   <div className="grid grid-cols-2 gap-3">
                     <button
-                      onClick={() => setFormData({ ...formData, paymentMethod: "card" })}
-                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                      onClick={() => setFormData((prev) => ({ ...prev, paymentMethod: "card" }))}
+                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition ${
                         formData.paymentMethod === "card"
                           ? "bg-yellow-400 text-black"
                           : "bg-white/5 text-gray-300 hover:bg-white/10"
@@ -430,8 +442,8 @@ export default function EventDetailsPage() {
                       Card
                     </button>
                     <button
-                      onClick={() => setFormData({ ...formData, paymentMethod: "mpesa" })}
-                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all ${
+                      onClick={() => setFormData((prev) => ({ ...prev, paymentMethod: "mpesa" }))}
+                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition ${
                         formData.paymentMethod === "mpesa"
                           ? "bg-yellow-400 text-black"
                           : "bg-white/5 text-gray-300 hover:bg-white/10"
@@ -443,28 +455,24 @@ export default function EventDetailsPage() {
                   </div>
                 </div>
 
-                {/* Terms */}
                 <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
                     className="w-4 h-4 rounded border-white/20 bg-white/5 checked:bg-yellow-400"
                     checked={formData.terms}
-                    onChange={(e) => setFormData({ ...formData, terms: e.target.checked })}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, terms: e.target.checked }))}
                   />
                   <span className="text-sm text-gray-300">
                     I agree to the <span className="text-yellow-400">Terms & Conditions</span>
                   </span>
                 </label>
 
-                {/* Total & Pay Button */}
                 <div className="border-t border-white/10 pt-4 space-y-3">
                   <div className="flex justify-between items-center">
                     <span className="text-gray-300">Total Amount</span>
-                    <span className="text-3xl font-bold text-white">
-                      Ksh {total.toLocaleString()}
-                    </span>
+                    <span className="text-3xl font-bold text-white">Ksh {total.toLocaleString()}</span>
                   </div>
-                  
+
                   <button
                     onClick={handleSubmit}
                     disabled={isProcessing || !formData.ticketType || !formData.terms}
@@ -479,10 +487,9 @@ export default function EventDetailsPage() {
                       "Confirm & Pay"
                     )}
                   </button>
-                  
+
                   <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-                    <Shield className="w-3 h-3" />
-                    Secure payment encrypted
+                    <span className="font-medium">Secure payment encrypted</span>
                   </div>
                 </div>
               </div>
