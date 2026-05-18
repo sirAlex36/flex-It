@@ -8,7 +8,7 @@ export default function EventBookingPage() {
   const eventId = params?.eventId;
   const router = useRouter();
 
-  const API_URL = "http://localhost:5000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
 
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -189,9 +189,7 @@ export default function EventBookingPage() {
               onChange={handleChange}
               className="w-full border p-2 rounded-xl"
             >
-              <option value="card">Card</option>
               <option value="mpesa">M-Pesa</option>
-              <option value="bank">Bank</option>
             </select>
 
             <label className="flex gap-2 text-sm">

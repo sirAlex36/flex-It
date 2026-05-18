@@ -1,15 +1,19 @@
+import { getSession } from "next-auth/react";
+
 // API utility functions for backend communication
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
 
 export async function apiCall(endpoint, options = {}, token = null) {
-  // Try to get token from options.headers.Authorization first, then from parameter, then from localStorage
+  // Try to get token from options.headers.Authorization first, then from parameter, then from NextAuth session/localStorage
   let authToken = token;
   if (options.headers?.Authorization) {
     authToken = options.headers.Authorization.replace("Bearer ", "");
   }
+
   if (!authToken && typeof window !== "undefined") {
-    authToken = localStorage.getItem("token");
+    const session = await getSession();
+    authToken = session?.accessToken || localStorage.getItem("token");
   }
 
   const headers = {
@@ -27,7 +31,7 @@ export async function apiCall(endpoint, options = {}, token = null) {
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({ error: `API Error: ${response.status}` }));
     throw new Error(error.error || `API Error: ${response.status}`);
   }
 
@@ -71,6 +75,43 @@ export async function deleteEvent(id) {
   return apiCall(`/events/${id}`, {
     method: "DELETE",
   });
+}
+
+// Organiser event management
+export async function getOrganizerDashboardAnalytics(token = null) {
+  return apiCall("/organiser/dashboard-analytics", { method: "GET" }, token);
+}
+
+export async function getOrganizerEvents(page = 1, perPage = 10, token = null) {
+  return apiCall(`/organiser/events?page=${page}&per_page=${perPage}`, { method: "GET" }, token);
+}
+
+export async function createOrganizerEvent(data, token = null) {
+  return apiCall("/organiser/events", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }, token);
+}
+
+export async function updateOrganizerEvent(eventId, data, token = null) {
+  return apiCall(`/organiser/events/${eventId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  }, token);
+}
+
+export async function deleteOrganizerEvent(eventId, token = null) {
+  return apiCall(`/organiser/events/${eventId}`, {
+    method: "DELETE",
+  }, token);
+}
+
+export async function getEventTickets(eventId, page = 1, perPage = 50, status = null, token = null) {
+  let url = `/organiser/events/${eventId}/tickets?page=${page}&per_page=${perPage}`;
+  if (status) {
+    url += `&status=${status}`;
+  }
+  return apiCall(url, { method: "GET" }, token);
 }
 
 // Tickets
@@ -260,50 +301,3 @@ export async function getUserMetrics(days = 30) {
   return apiCall(`/analytics/user-metrics?days=${days}`);
 }
 
-// ============ ORGANISER MANAGEMENT ============
-
-export async function createOrganizerEvent(data) {
-  return apiCall("/organiser/events", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function getOrganizerEvents(page = 1, perPage = 10) {
-  return apiCall(`/organiser/events?page=${page}&per_page=${perPage}`);
-}
-
-export async function getOrganizerEvent(eventId) {
-  return apiCall(`/organiser/events/${eventId}`);
-}
-
-export async function updateOrganizerEvent(eventId, data) {
-  return apiCall(`/organiser/events/${eventId}`, {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
-}
-
-export async function deleteOrganizerEvent(eventId) {
-  return apiCall(`/organiser/events/${eventId}`, {
-    method: "DELETE",
-  });
-}
-
-export async function getEventTickets(eventId, page = 1, perPage = 20, status = null) {
-  let url = `/organiser/events/${eventId}/tickets?page=${page}&per_page=${perPage}`;
-  if (status) url += `&status=${status}`;
-  return apiCall(url);
-}
-
-export async function getOrganizerDashboardAnalytics() {
-  return apiCall("/organiser/dashboard-analytics");
-}
-
-export async function getOrganizerEventPerformance(eventId) {
-  return apiCall(`/organiser/event-performance/${eventId}`);
-}
-
-export async function getOrganizerProfile() {
-  return apiCall("/organiser/profile");
-}

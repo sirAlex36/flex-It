@@ -57,6 +57,7 @@ const OrganizerDashboard = () => {
   const [ticketsForEvent, setTicketsForEvent] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [showEventForm, setShowEventForm] = useState(false);
+  const [editingEventId, setEditingEventId] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     date: "",
@@ -92,9 +93,10 @@ const OrganizerDashboard = () => {
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const data = await getOrganizerDashboardAnalytics();
+      const data = await getOrganizerDashboardAnalytics(session?.accessToken);
       setDashboardData(data);
       setError(null);
+      await loadEvents();
     } catch (err) {
       console.error("Error loading dashboard:", err);
       setError("Failed to load dashboard data");
@@ -103,11 +105,19 @@ const OrganizerDashboard = () => {
     }
   };
 
-  const loadEvents = async () => {
+  const loadEvents = async (force = false) => {
+    if (!force && events.length > 0) return;
+
     try {
       setLoading(true);
-      const response = await getOrganizerEvents(1, 20);
-      setEvents(response.events || []);
+      const response = await getOrganizerEvents(1, 20, session?.accessToken);
+      const normalizedEvents = (response.events || []).map((event) => ({
+        ...event,
+        tickets_sold: event.tickets_sold ?? event.ticketsSold ?? 0,
+        total_revenue: event.total_revenue ?? event.revenue ?? 0,
+        ticket_prices: event.ticket_prices || [],
+      }));
+      setEvents(normalizedEvents);
       setError(null);
     } catch (err) {
       console.error("Error loading events:", err);
@@ -120,7 +130,7 @@ const OrganizerDashboard = () => {
   const loadEventTickets = async (eventId) => {
     try {
       setLoading(true);
-      const response = await getEventTickets(eventId, 1, 50);
+      const response = await getEventTickets(eventId, 1, 50, null, session?.accessToken);
       setTicketsForEvent(response.tickets || []);
       setSelectedEventId(eventId);
       setError(null);
@@ -132,12 +142,25 @@ const OrganizerDashboard = () => {
     }
   };
 
-  const handleCreateEvent = async (e) => {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      await createOrganizerEvent(formData);
-      setSuccess("Event created successfully!");
+  const handleOpenEventForm = (event = null) => {
+    if (event) {
+      setEditingEventId(event.id);
+      setFormData({
+        name: event.name || "",
+        date: event.date || "",
+        venue: event.venue || "",
+        description: event.description || "",
+        image: event.image || "",
+        ticket_prices:
+          event.ticket_prices?.length > 0
+            ? event.ticket_prices.map((ticket) => ({
+                ticket_type: ticket.ticket_type,
+                price: ticket.price,
+              }))
+            : [{ ticket_type: "General", price: 1000 }],
+      });
+    } else {
+      setEditingEventId(null);
       setFormData({
         name: "",
         date: "",
@@ -146,37 +169,90 @@ const OrganizerDashboard = () => {
         image: "",
         ticket_prices: [{ ticket_type: "General", price: 1000 }],
       });
+    }
+    setShowEventForm(true);
+  };
+
+  const handleSaveEvent = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      if (editingEventId) {
+        await updateOrganizerEvent(editingEventId, formData, session?.accessToken);
+        setSuccess("Event updated successfully!");
+      } else {
+        await createOrganizerEvent(formData, session?.accessToken);
+        setSuccess("Event created successfully!");
+      }
+      setFormData({
+        name: "",
+        date: "",
+        venue: "",
+        description: "",
+        image: "",
+        ticket_prices: [{ ticket_type: "General", price: 1000 }],
+      });
+      setEditingEventId(null);
       setShowEventForm(false);
-      loadEvents();
+      await loadEvents(true);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      setError(err.message || "Failed to create event");
+      setError(err.message || "Failed to save event");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleUpdateEvent = async (eventId, updatedData) => {
-    try {
-      setLoading(true);
-      await updateOrganizerEvent(eventId, updatedData);
-      setSuccess("Event updated successfully!");
-      loadEvents();
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(err.message || "Failed to update event");
-    } finally {
-      setLoading(false);
-    }
+  const closeEventForm = () => {
+    setShowEventForm(false);
+    setEditingEventId(null);
+    setFormData({
+      name: "",
+      date: "",
+      venue: "",
+      description: "",
+      image: "",
+      ticket_prices: [{ ticket_type: "General", price: 1000 }],
+    });
+    setError(null);
+  };
+
+  const handleTicketPriceChange = (index, field, value) => {
+    const updated = [...formData.ticket_prices];
+    updated[index] = {
+      ...updated[index],
+      [field]: field === "price" ? Number(value) : value,
+    };
+    setFormData({ ...formData, ticket_prices: updated });
+  };
+
+  const handleAddTicketTier = () => {
+    setFormData({
+      ...formData,
+      ticket_prices: [
+        ...formData.ticket_prices,
+        { ticket_type: "General", price: 1000 },
+      ],
+    });
+  };
+
+  const handleRemoveTicketTier = (index) => {
+    const updated = formData.ticket_prices.filter((_, i) => i !== index);
+    setFormData({
+      ...formData,
+      ticket_prices: updated.length
+        ? updated
+        : [{ ticket_type: "General", price: 1000 }],
+    });
   };
 
   const handleDeleteEvent = async (eventId) => {
     if (!confirm("Are you sure you want to delete this event?")) return;
     try {
       setLoading(true);
-      await deleteOrganizerEvent(eventId);
+      await deleteOrganizerEvent(eventId, session?.accessToken);
       setSuccess("Event deleted successfully!");
-      loadEvents();
+      await loadEvents(true);
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       setError(err.message || "Failed to delete event");
@@ -306,21 +382,27 @@ const OrganizerDashboard = () => {
         <div className="grid grid-cols-2 gap-3 mt-4">
           <div className="bg-blue-50 rounded-lg p-2">
             <p className="text-xs text-gray-600">Tickets Sold</p>
-            <p className="font-bold text-gray-900">{event.ticketsSold}</p>
+            <p className="font-bold text-gray-900">{event.tickets_sold}</p>
           </div>
           <div className="bg-indigo-50 rounded-lg p-2">
             <p className="text-xs text-gray-600">Revenue</p>
-            <p className="font-bold text-gray-900">KES {event.revenue}</p>
+            <p className="font-bold text-gray-900">KES {event.total_revenue.toLocaleString()}</p>
           </div>
         </div>
 
         {/* Actions */}
         <div className="flex gap-2 mt-4">
-          <button className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
+          <button
+            onClick={() => handleOpenEventForm(event)}
+            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
             <Edit2 size={16} />
             Edit
           </button>
-          <button className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2">
+          <button
+            onClick={() => loadEventTickets(event.id)}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
             <Eye size={16} />
             View
           </button>
@@ -476,7 +558,7 @@ const OrganizerDashboard = () => {
                   <div className="flex items-center justify-between">
                     <h2 className="text-xl font-bold text-gray-900">Your Events</h2>
                     <button
-                      onClick={() => setShowEventForm(true)}
+                      onClick={() => handleOpenEventForm()}
                       className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors"
                     >
                       <Plus size={18} />
@@ -528,7 +610,7 @@ const OrganizerDashboard = () => {
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-gray-900">Your Events</h2>
                 <button
-                  onClick={() => setShowEventForm(true)}
+                  onClick={() => handleOpenEventForm()}
                   className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg font-semibold hover:shadow-lg transition-all"
                 >
                   <Plus size={18} />
@@ -569,6 +651,13 @@ const OrganizerDashboard = () => {
                         </div>
 
                         <div className="flex gap-2 mt-4">
+                          <button
+                            onClick={() => handleOpenEventForm(event)}
+                            className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Edit2 size={16} />
+                            Edit
+                          </button>
                           <button
                             onClick={() => loadEventTickets(event.id)}
                             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -799,6 +888,159 @@ const OrganizerDashboard = () => {
           )}
         </div>
       </div>
+
+      {showEventForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-3xl rounded-3xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-200">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {editingEventId ? "Edit Event" : "Create Event"}
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {editingEventId
+                    ? "Update event details and ticket tiers."
+                    : "Add a new event for your attendees."}
+                </p>
+              </div>
+              <button
+                onClick={closeEventForm}
+                className="text-gray-500 hover:text-gray-700 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEvent} className="p-6 space-y-6">
+              {(error || success) && (
+                <div
+                  className={`rounded-xl border p-4 text-sm ${
+                    error ? "border-red-200 bg-red-50 text-red-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  {error || success}
+                </div>
+              )}
+
+              <div className="grid lg:grid-cols-2 gap-6">
+                <label className="space-y-2 text-sm text-gray-700">
+                  <span>Event Name</span>
+                  <input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    required
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-gray-700">
+                  <span>Event Date</span>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    required
+                  />
+                </label>
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-6">
+                <label className="space-y-2 text-sm text-gray-700">
+                  <span>Venue</span>
+                  <input
+                    value={formData.venue}
+                    onChange={(e) => setFormData({ ...formData, venue: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    required
+                  />
+                </label>
+                <label className="space-y-2 text-sm text-gray-700">
+                  <span>Image URL</span>
+                  <input
+                    value={formData.image}
+                    onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                    className="w-full rounded-2xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    placeholder="Optional image URL"
+                  />
+                </label>
+              </div>
+
+              <label className="space-y-2 text-sm text-gray-700">
+                <span>Description</span>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full min-h-[120px] rounded-2xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </label>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-900">Ticket tiers</p>
+                  <button
+                    type="button"
+                    onClick={handleAddTicketTier}
+                    className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                  >
+                    + Add tier
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {formData.ticket_prices.map((tier, index) => (
+                    <div key={`${tier.ticket_type}-${index}`} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                      <label className="space-y-2 text-sm text-gray-700">
+                        <span>Ticket type</span>
+                        <input
+                          value={tier.ticket_type}
+                          onChange={(e) => handleTicketPriceChange(index, "ticket_type", e.target.value)}
+                          className="w-full rounded-2xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                          required
+                        />
+                      </label>
+                      <label className="space-y-2 text-sm text-gray-700">
+                        <span>Price (KES)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={tier.price}
+                          onChange={(e) => handleTicketPriceChange(index, "price", e.target.value)}
+                          className="w-full rounded-2xl border border-gray-300 px-4 py-3 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                          required
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTicketTier(index)}
+                        className="w-full rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:bg-red-100"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeEventForm}
+                  className="rounded-2xl border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-100 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="rounded-2xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                  {loading ? (editingEventId ? "Saving..." : "Creating...") : editingEventId ? "Save Changes" : "Create Event"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
