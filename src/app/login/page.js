@@ -16,7 +16,6 @@ export default function LoginPage() {
   // 🔥 REDIRECT IF ALREADY AUTHENTICATED (FALLBACK)
   useEffect(() => {
     if (status === "authenticated" && session?.user?.id) {
-      console.log("✅ Already authenticated, redirecting...");
       const role = session.user.role;
 
       if (role === "admin") {
@@ -35,15 +34,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      console.log("🔐 Attempting login...");
       
       const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
       });
-
-      console.log("🔐 Sign in result:", result);
 
       if (result?.error) {
         setError(result.error);
@@ -52,8 +48,6 @@ export default function LoginPage() {
       }
 
       if (result?.ok) {
-        console.log("✅ Login successful, fetching session...");
-        
         // Give the session a moment to be established
         await new Promise(resolve => setTimeout(resolve, 500));
         
