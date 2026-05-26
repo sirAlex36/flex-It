@@ -1,9 +1,22 @@
+export const dynamic = 'force-dynamic';
+export const dynamicParams = true;
 "use client";
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Calendar, MapPin, Clock, Ticket, CreditCard, CheckCircle, ArrowLeft, Sparkles } from "lucide-react";
+
+
+export function generateStaticParams() {
+  // Return empty array = don't pre-render any event pages at build time
+  // Pages will be generated when users first visit them
+  return [];
+}
+
+// Optional but recommended: Configure ISR (Incremental Static Regeneration)
+export const dynamicParams = true; // Allow any event ID
+export const revalidate = 60; // Cache pages for 60 seconds, then regenerate in background
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 

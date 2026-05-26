@@ -90,35 +90,93 @@ export default function BookingPage() {
     setSubmitting(true);
     setError("");
 
-    const payload = {
-      event_id: bookingData.eventId,
-      ticket_type: bookingData.ticketType,
-      quantity: bookingData.quantity,
-      price: bookingData.totalAmount,
-      user_id: session.user.id,
-    };
-
     try {
-      const res = await fetch(`${API_URL}/tickets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        throw new Error("Booking failed");
+      // Step 1: Get JWT token from session
+      const token = session?.user?.token;
+      if (!token) {
+        throw new Error("Authentication token not available");
       }
 
-      const data = await res.json();
-      
+      // Step 2: Create ticket
+      const ticketPayload = {
+        event_id: bookingData.eventId,
+        ticket_type: bookingData.ticketType,
+        quantity: bookingData.quantity,
+        price: bookingData.totalAmount,
+        user_id: session.user.id,
+      };
+
+      const ticketRes = await fetch(`${API_URL}/tickets`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify(ticketPayload),
+      });
+
+      if (!ticketRes.ok) {
+        const errorData = await ticketRes.json();
+        throw new Error(errorData.message || "Booking failed");
+      }
+
+      const ticketData = await ticketRes.json();
+      const ticketId = ticketData.id;
+
+      // Step 3: If M-Pesa, initiate STK push
+      if (formData.paymentMethod === "mpesa") {
+        try {
+          const stkPayload = {
+            phone: formData.phone.replace(/\D/g, ""), // Remove non-digits
+            amount: bookingData.totalAmount,
+            ticket_id: ticketId,
+          };
+
+          const stkRes = await fetch(`${API_URL}/mpesa/stk-push`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify(stkPayload),
+          });
+
+          if (!stkRes.ok) {
+            const errorData = await stkRes.json();
+            throw new Error(errorData.message || "Failed to initiate payment");
+          }
+
+          const stkData = await stkRes.json();
+
+          // Store payment data for confirmation page
+          sessionStorage.setItem(
+            "paymentPending",
+            JSON.stringify({
+              ticketId: ticketId,
+              requestId: stkData.request_id,
+              amount: bookingData.totalAmount,
+              phone: formData.phone,
+              status: "awaiting_payment",
+            })
+          );
+        } catch (stkError) {
+          // STK push failed, but ticket was created
+          setError(`Ticket created but payment failed: ${stkError.message}`);
+          setSubmitting(false);
+          return;
+        }
+      }
+
       // Store confirmation data
       sessionStorage.setItem(
         "bookingConfirmation",
         JSON.stringify({
-          ticketId: data.id,
+          ticketId: ticketId,
           userName: `${formData.firstName} ${formData.lastName}`,
           userEmail: formData.email,
           userPhone: formData.phone,
+          paymentMethod: formData.paymentMethod,
+          status: formData.paymentMethod === "mpesa" ? "awaiting_payment" : "pending",
           ...bookingData,
         })
       );
@@ -126,8 +184,8 @@ export default function BookingPage() {
       // Clear booking data
       sessionStorage.removeItem("bookingData");
 
-      // Redirect to confirmation
-      router.push(`/booking-confirmation/${data.id}`);
+      // Redirect to confirmation/payment page
+      router.push(`/booking-confirmation/${ticketId}`);
     } catch (err) {
       setError(err.message || "Booking failed. Please try again.");
       setSubmitting(false);
@@ -294,6 +352,11 @@ export default function BookingPage() {
                     <option value="mpesa">M-Pesa</option>
                     <option value="bank">Bank Transfer</option>
                   </select>
+                  {formData.paymentMethod === "mpesa" && (
+                    <p className="mt-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
+                      💬 You'll receive an M-Pesa prompt on your phone to enter your PIN and complete payment.
+                    </p>
+                  )}
                 </div>
 
                 {/* Terms */}
@@ -326,11 +389,13 @@ export default function BookingPage() {
                   {submitting ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Processing...
+                      {formData.paymentMethod === "mpesa"
+                        ? "Initiating M-Pesa..."
+                        : "Processing..."}
                     </>
                   ) : (
                     <>
-                      Complete Booking
+                      Confirm & Pay
                       <span>→</span>
                     </>
                   )}
