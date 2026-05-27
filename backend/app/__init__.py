@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, app, jsonify
+from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from .config import DevelopmentConfig
@@ -9,6 +9,7 @@ from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from flask_limiter import Limiter  # Issue #8: Rate limiting
 from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -23,21 +24,43 @@ db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()
 bcrypt = Bcrypt()
+redis_url = os.getenv("REDIS_URL")
 limiter = Limiter(
     key_func=get_remote_address,
-    storage_uri=os.getenv("REDIS_URL", "redis://localhost:6379")
+    storage_uri=redis_url
 )
 SQLALCHEMY_ENGINE_OPTIONS = {
     "pool_pre_ping": True,
     "pool_recycle": 300,
 }
-
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "")
+config_name = os.getenv("FLASK_ENV", "development")
 
 def create_app():
     app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI']=("postgresql+psycopg2://Kipkorir:Alex1234@localhost:5432/flexIt")
-    app.config.from_object(DevelopmentConfig)
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL is missing")
 
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace(
+        "postgres://",
+        "postgresql://",
+        1
+    )
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+    app.config.from_object(DevelopmentConfig)
+    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+    }
+
+
+    if config_name == "production":
+        from .config import ProductionConfig
+        app.config.from_object(ProductionConfig)
+    else:
+        app.config.from_object(DevelopmentConfig)
     # 🔒 JWT CONFIG
     jwt_secret = os.getenv("JWT_SECRET_KEY")
     if not jwt_secret:raise ValueError("JWT_SECRET_KEY is missing")
@@ -56,10 +79,11 @@ def create_app():
     # 🔥 CORS FIX (IMPORTANT)
     CORS(
         app,
-        origins=os.getenv("ALLOWED_ORIGINS", "").split(","),
+        origins=allowed_origins.split(",") if allowed_origins else [],
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization"]
     )
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
     # Issue #12: Setup structured logging
     from .logging_config import setup_logging
@@ -106,7 +130,14 @@ def create_app():
     
     @app.route("/health")
     def health():
-        return {"status": "healthy"}, 200
+        try:
+            db.session.execute("SELECT 1")
+            return {"status": "healthy"}, 200
+        except Exception as e:
+            return {
+                "status": "unhealthy",
+                "error": str(e)
+            }, 500
     
     app.config["SESSION_COOKIE_SECURE"] = True
     app.config["REMEMBER_COOKIE_SECURE"] = True
