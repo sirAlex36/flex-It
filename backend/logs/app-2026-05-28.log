@@ -23,3 +23,13 @@
 2026-05-28 01:42:09 - backend.app - INFO - [logging_config.py:111] - Logs directory: /home/alex/Moringa/Project/flex-It/backend/logs
 2026-05-28 01:42:09 - backend.app - INFO - [logging_config.py:112] - ==================================================
 2026-05-28 01:42:09 - werkzeug - WARNING - [_internal.py:97] -  * Debugger is active!
+2026-05-28 01:53:07 - app - INFO - [logging_config.py:109] - ==================================================
+2026-05-28 01:53:07 - app - INFO - [logging_config.py:110] - Logging configured successfully
+2026-05-28 01:53:07 - app - INFO - [logging_config.py:111] - Logs directory: /home/alex/Moringa/Project/flex-It/backend/logs
+2026-05-28 01:53:07 - app - INFO - [logging_config.py:112] - ==================================================
+2026-05-28 01:53:09 - werkzeug - WARNING - [_internal.py:97] -  * Debugger is active!
+2026-05-28 01:53:15 - app - INFO - [logging_config.py:109] - ==================================================
+2026-05-28 01:53:15 - app - INFO - [logging_config.py:110] - Logging configured successfully
+2026-05-28 01:53:15 - app - INFO - [logging_config.py:111] - Logs directory: /home/alex/Moringa/Project/flex-It/backend/logs
+2026-05-28 01:53:15 - app - INFO - [logging_config.py:112] - ==================================================
+2026-05-28 01:53:15 - werkzeug - WARNING - [_internal.py:97] -  * Debugger is active!
