@@ -3,6 +3,7 @@ import os
 from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from sqlalchemy import text
 from .config import DevelopmentConfig
 from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
@@ -27,7 +28,7 @@ bcrypt = Bcrypt()
 redis_url = os.getenv("REDIS_URL")
 limiter = Limiter(
     key_func=get_remote_address,
-    storage_uri=redis_url
+    storage_uri=redis_url if redis_url else "memory://"
 )
 SQLALCHEMY_ENGINE_OPTIONS = {
     "pool_pre_ping": True,
@@ -48,8 +49,7 @@ def create_app():
         "postgresql://",
         1
     )
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-    app.config.from_object(DevelopmentConfig)
+    
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
@@ -61,6 +61,8 @@ def create_app():
         app.config.from_object(ProductionConfig)
     else:
         app.config.from_object(DevelopmentConfig)
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+
     # 🔒 JWT CONFIG
     jwt_secret = os.getenv("JWT_SECRET_KEY")
     if not jwt_secret:raise ValueError("JWT_SECRET_KEY is missing")
@@ -79,9 +81,14 @@ def create_app():
     # 🔥 CORS FIX (IMPORTANT)
     CORS(
         app,
-        origins=allowed_origins.split(",") if allowed_origins else [],
+        resources={
+            r"/*": { 
+                "origins": allowed_origins.split(",") if allowed_origins else []
+            }
+       },
         supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization"]
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     )
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
@@ -96,6 +103,12 @@ def create_app():
     # 🔗 REGISTER ROUTES
     from .routes import main
     app.register_blueprint(main)
+
+    @app.route("/")
+    def home():
+        return {
+            "message": "Flex-It API running"
+         }, 200
 
     # ❌ GLOBAL ERROR HANDLERS - Ensure JSON responses
     @app.errorhandler(404)
@@ -131,12 +144,15 @@ def create_app():
     @app.route("/health")
     def health():
         try:
-            db.session.execute("SELECT 1")
-            return {"status": "healthy"}, 200
+            db.session.execute(text("SELECT 1"))
+            return {
+            "status": "healthy",
+            "database": "connected"
+            }, 200
         except Exception as e:
             return {
-                "status": "unhealthy",
-                "error": str(e)
+               "status": "unhealthy",
+               "error": str(e)
             }, 500
     
     app.config["SESSION_COOKIE_SECURE"] = True
