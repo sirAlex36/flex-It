@@ -34,7 +34,6 @@ SQLALCHEMY_ENGINE_OPTIONS = {
     "pool_pre_ping": True,
     "pool_recycle": 300,
 }
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "")
 config_name = os.getenv("FLASK_ENV", "development")
 
 def create_app():
@@ -79,11 +78,22 @@ def create_app():
     limiter.init_app(app)  # Issue #8: Initialize rate limiter
 
     # 🔥 CORS FIX (IMPORTANT)
+    allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+    allowed_origins_list = [
+        "http://localhost:3000",
+        "http://localhost:5000",
+        "https://flex-it-six.vercel.app",
+        "https://flex-it.onrender.com"
+    ]
+    
+    if allowed_origins_env:
+        allowed_origins_list.extend([origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()])
+    
     CORS(
         app,
         resources={
             r"/*": { 
-                "origins": allowed_origins.split(",") if allowed_origins else []
+                "origins": allowed_origins_list
             }
        },
         supports_credentials=True,
