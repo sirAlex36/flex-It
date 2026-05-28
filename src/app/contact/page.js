@@ -5,7 +5,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 
 export default function Contact() {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
   const [formData, setFormData] = useState({
     name: "",
     email: "",

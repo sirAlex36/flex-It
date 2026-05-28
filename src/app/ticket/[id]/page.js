@@ -13,7 +13,7 @@ export default function TicketDetails() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
 
   useEffect(() => {
     if (!ticketId) return;

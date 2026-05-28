@@ -33,7 +33,7 @@ import {
 } from "@heroicons/react/24/solid";
 import { format, isAfter, isToday, differenceInDays } from "date-fns";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
 
 // Animation variants
 const fadeInUp = {

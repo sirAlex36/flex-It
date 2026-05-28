@@ -8,7 +8,7 @@ export default function BookingPage() {
   const params = useParams();
   const router = useRouter();
   const { data: session, status } = useSession();
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
 
   const [bookingData, setBookingData] = useState(null);
   const [loading, setLoading] = useState(true);

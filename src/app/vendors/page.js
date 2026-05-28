@@ -13,33 +13,6 @@ export default function Vendors() {
     const dummyVendors = [
       {
         id: 1,
-        name: "EventTech Solutions",
-        description: "Professional event management and ticketing services",
-        category: "Event Management",
-        location: "Nairobi, Kenya",
-        rating: 4.8,
-        image: "https://images.unsplash.com/photo-1556761175-b413da4baf72"
-      },
-      {
-        id: 2,
-        name: "SoundMasters Audio",
-        description: "High-quality sound equipment and DJ services",
-        category: "Audio Services",
-        location: "Mombasa, Kenya",
-        rating: 4.6,
-        image: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f"
-      },
-      {
-        id: 3,
-        name: "Catering Delights",
-        description: "Exquisite catering services for all event types",
-        category: "Catering",
-        location: "Kisumu, Kenya",
-        rating: 4.9,
-        image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0"
-      },
-      {
-        id: 4,
         name: "DecorMasters",
         description: "Creative event decoration and setup services",
         category: "Decorations",
@@ -48,7 +21,7 @@ export default function Vendors() {
         image: "https://images.unsplash.com/photo-1464366400600-7168b8af9bc3"
       },
       {
-        id: 5,
+        id: 2,
         name: "PhotoPro Studios",
         description: "Professional photography and videography",
         category: "Photography",
@@ -57,7 +30,7 @@ export default function Vendors() {
         image: "https://images.unsplash.com/photo-1606983340126-99ab4feaa64a"
       },
       {
-        id: 6,
+        id: 3,
         name: "Transport Solutions",
         description: "Reliable transportation and logistics for events",
         category: "Transportation",
