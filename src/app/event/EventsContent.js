@@ -1,10 +1,7 @@
-// /src/app/event/EventsContent.js
 "use client";
 
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -50,53 +47,49 @@ export default function EventsContent() {
 
   if (loading) {
     return (
-      <>
-        <Header />
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="h-8 w-48 bg-gray-200 rounded animate-pulse mb-6"></div>
+        <div className="h-10 bg-gray-200 rounded animate-pulse mb-6"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1,2,3,4,5,6].map(i => (
+            <div key={i} className="h-64 bg-gray-200 rounded animate-pulse"></div>
+          ))}
         </div>
-        <Footer />
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <Header />
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-6">Upcoming Events</h1>
-        
-        {/* Search Input */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Search events..."
-            value={searchTerm}
-            onChange={(e) => handleSearch(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold mb-6">Upcoming Events</h1>
+      
+      <div className="mb-6">
+        <input
+          type="text"
+          placeholder="Search events..."
+          value={searchTerm}
+          onChange={(e) => handleSearch(e.target.value)}
+          className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
 
-        {/* Events Grid */}
-        {events.length === 0 ? (
-          <p className="text-gray-500 text-center py-12">No events found.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map((event) => (
-              <div 
-                key={event.id} 
-                onClick={() => router.push(`/event/${event.id}`)}
-                className="border rounded-lg p-4 cursor-pointer hover:shadow-lg transition"
-              >
-                <h2 className="text-xl font-semibold">{event.name}</h2>
-                <p className="text-gray-600 mt-2">{event.date}</p>
-                <p className="text-gray-500">{event.venue}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
-      <Footer />
-    </>
+      {events.length === 0 ? (
+        <p className="text-gray-500 text-center py-12">No events found.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {events.map((event) => (
+            <div 
+              key={event.id} 
+              onClick={() => router.push(`/event/${event.id}`)}
+              className="border rounded-lg p-4 cursor-pointer hover:shadow-lg transition"
+            >
+              <h2 className="text-xl font-semibold">{event.name}</h2>
+              <p className="text-gray-600 mt-2">{event.date}</p>
+              <p className="text-gray-500">{event.venue}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
