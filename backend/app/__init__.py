@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import text
@@ -78,11 +78,15 @@ def create_app():
     limiter.init_app(app)  # Issue #8: Initialize rate limiter
 
     # 🔥 CORS FIX (IMPORTANT)
+    # Add ProxyFix BEFORE CORS so headers are handled correctly
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    
     allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
     allowed_origins_list = [
         "http://localhost:3000",
         "http://localhost:5000",
         "https://flex-it-six.vercel.app",
+        "https://flex-it-git-main-siralex36s-projects.vercel.app",
         "https://flex-it.onrender.com"
     ]
     
@@ -91,16 +95,24 @@ def create_app():
     
     CORS(
         app,
-        resources={
-            r"/*": { 
-                "origins": allowed_origins_list
-            }
-       },
+        origins=allowed_origins_list,
         supports_credentials=True,
         allow_headers=["Content-Type", "Authorization"],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        expose_headers=["Content-Type"],
+        max_age=3600
     )
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    
+    # Ensure CORS headers on all responses including errors
+    @app.after_request
+    def after_request(response):
+        origin = request.headers.get('Origin')
+        if origin in allowed_origins_list:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
 
     # Issue #12: Setup structured logging
     from .logging_config import setup_logging
