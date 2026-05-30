@@ -1,0 +1,2 @@
+2026-05-30 14:49:58 - flask_migrate - ERROR - [__init__.py:113] - Error: Directory migrations already exists and is not empty
+2026-05-30 14:55:15 - flask_migrate - ERROR - [__init__.py:113] - Error: Path doesn't exist: migrations.  Please use the 'init' command to create a new scripts folder.

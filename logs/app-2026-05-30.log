@@ -1,0 +1,9 @@
+2026-05-30 00:05:20 - backend.app - INFO - [logging_config.py:109] - ==================================================
+2026-05-30 00:05:20 - backend.app - INFO - [logging_config.py:110] - Logging configured successfully
+2026-05-30 00:05:20 - backend.app - INFO - [logging_config.py:111] - Logs directory: /home/alex/Moringa/Project/flex-It/logs
+2026-05-30 00:05:20 - backend.app - INFO - [logging_config.py:112] - ==================================================
+2026-05-30 00:06:48 - backend.app - INFO - [logging_config.py:109] - ==================================================
+2026-05-30 00:06:48 - backend.app - INFO - [logging_config.py:110] - Logging configured successfully
+2026-05-30 00:06:48 - backend.app - INFO - [logging_config.py:111] - Logs directory: /home/alex/Moringa/Project/flex-It/logs
+2026-05-30 00:06:48 - backend.app - INFO - [logging_config.py:112] - ==================================================
+2026-05-30 00:06:49 - flask_migrate - ERROR - [__init__.py:113] - Error: Path doesn't exist: migrations.  Please use the 'init' command to create a new scripts folder.

@@ -17,6 +17,15 @@ class Config:
     JWT_ALGORITHM = "HS256"
 
 
+class DevelopmentConfig(Config):
+    DEBUG = True
+    TESTING = False
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        "DATABASE_URL",
+        "postgresql://localhost/flexit_dev"
+    )
+    SQLALCHEMY_ECHO = True
+
 
 class ProductionConfig(Config):
     database_url = os.environ["DATABASE_URL"]

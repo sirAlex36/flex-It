@@ -2,9 +2,9 @@
 Analytics and reporting endpoints for admin dashboard
 """
 from flask import request, jsonify
-from app import db
+from backend.app import db
 from . import main
-from app.models import Event, Ticket, Transaction, User
+from backend.app.models import Event, Ticket, Transaction, User
 from flask_jwt_extended import jwt_required, get_jwt
 from datetime import datetime, timedelta
 from sqlalchemy import func
