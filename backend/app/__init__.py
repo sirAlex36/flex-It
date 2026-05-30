@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import text
-from .config import DevelopmentConfig
+from .config import Config
 from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
@@ -55,11 +55,7 @@ def create_app():
     }
 
 
-    if config_name == "production":
-        from .config import ProductionConfig
-        app.config.from_object(ProductionConfig)
-    else:
-        app.config.from_object(DevelopmentConfig)
+    app.config.from_object(Config)
     app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 
     # 🔒 JWT CONFIG
