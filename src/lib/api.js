@@ -2,7 +2,7 @@ import { getSession } from "next-auth/react";
 
 // API utility functions for backend communication
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 export async function apiCall(endpoint, options = {}, token = null) {
   // Try to get token from options.headers.Authorization first, then from parameter, then from NextAuth session/localStorage

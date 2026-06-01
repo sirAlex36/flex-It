@@ -2,8 +2,8 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { jwtDecode } from "jwt-decode";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000";
-const NEXTAUTH_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
+const NEXTAUTH_URL = process.env.NEXTAUTH_URL || "https://flex-it-six.vercel.app/";
 
 const authOptions = {
   providers: [
