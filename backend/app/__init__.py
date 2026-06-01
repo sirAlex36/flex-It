@@ -75,7 +75,7 @@ def create_app():
 
     # 🔥 CORS FIX (IMPORTANT)
     # Add ProxyFix BEFORE CORS so headers are handled correctly
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_port=1)
     
     allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
     allowed_origins_list = [
@@ -89,26 +89,18 @@ def create_app():
     if allowed_origins_env:
         allowed_origins_list.extend([origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()])
     
+    # Use flask-cors to handle all CORS headers automatically
     CORS(
         app,
-        origins=allowed_origins_list,
-        supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization"],
-        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-        expose_headers=["Content-Type"],
-        max_age=3600
+        resources={r"/*": {
+            "origins": allowed_origins_list,
+            "supports_credentials": True,
+            "allow_headers": ["Content-Type", "Authorization"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+            "expose_headers": ["Content-Type"],
+            "max_age": 3600
+        }}
     )
-    
-    # Ensure CORS headers on all responses including errors
-    @app.after_request
-    def after_request(response):
-        origin = request.headers.get('Origin')
-        if origin in allowed_origins_list:
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        return response
 
     # Issue #12: Setup structured logging
     from .logging_config import setup_logging
