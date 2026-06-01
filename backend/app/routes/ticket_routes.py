@@ -1,8 +1,7 @@
 from flask import request, jsonify
 from . import main
 from ..models import Ticket, User, Event, TicketPrice, Transaction
-from .. import db
-from backend.app import bcrypt
+from .. import db, bcrypt
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from sqlalchemy import func
 from datetime import datetime
