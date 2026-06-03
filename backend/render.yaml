@@ -3,24 +3,8 @@ services:
     name: flexit-backend
     runtime: python
     buildCommand: |
-      pip install -r requirements.txt
-      python -c "
-    import os
-    import sys
-
-# Fix database URL
-if os.environ.get('DATABASE_URL'):
-    os.environ['DATABASE_URL'] = os.environ['DATABASE_URL'].replace('postgres://', 'postgresql://', 1)
-
-from backend.app import create_app, db
-import backend.app.models
-
-app = create_app()
-with app.app_context():
-    db.create_all()
-    print('✓ Database tables created successfully')
-    print('Tables:', db.engine.table_names())
-"
+      pip install -r requirements.txt && \
+      python backend/db_init.py
     startCommand: gunicorn wsgi:app
     envVars:
       - key: DATABASE_URL
