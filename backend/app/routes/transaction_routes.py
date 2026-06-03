@@ -2,9 +2,9 @@
 Transaction and payment management routes
 """
 from flask import request, jsonify
-from .. import db
+from backend.app import db
 from . import main
-from ..models import Transaction, Ticket, User, AuditLog
+from backend.app.models import Transaction, Ticket, User, AuditLog
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from datetime import datetime
 from functools import wraps

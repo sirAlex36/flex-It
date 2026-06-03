@@ -1,11 +1,24 @@
-import sys
 import os
+import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Fix database URL for Render
+if os.environ.get('DATABASE_URL'):
+    os.environ['DATABASE_URL'] = os.environ['DATABASE_URL'].replace('postgres://', 'postgresql://', 1)
 
-from app import create_app
+from backend.app import create_app, db
+import backend.app.models
 
 app = create_app()
 
+# Create tables on startup (fallback)
+with app.app_context():
+    try:
+        db.create_all()
+        app.logger.info("✓ Database tables verified/created")
+    except Exception as e:
+        app.logger.error(f"Database initialization error: {e}")
+
 if __name__ == "__main__":
-    app.run()
+    app.run
+
+

@@ -1,0 +1,8 @@
+2026-06-03 18:59:14 - app - INFO - [logging_config.py:109] - ==================================================
+2026-06-03 18:59:14 - app - INFO - [logging_config.py:110] - Logging configured successfully
+2026-06-03 18:59:14 - app - INFO - [logging_config.py:111] - Logs directory: /home/alex/Moringa/Project/flex-It/backend/logs
+2026-06-03 18:59:14 - app - INFO - [logging_config.py:112] - ==================================================
+2026-06-03 19:17:21 - app - INFO - [logging_config.py:109] - ==================================================
+2026-06-03 19:17:21 - app - INFO - [logging_config.py:110] - Logging configured successfully
+2026-06-03 19:17:21 - app - INFO - [logging_config.py:111] - Logs directory: /home/alex/Moringa/Project/flex-It/backend/logs
+2026-06-03 19:17:21 - app - INFO - [logging_config.py:112] - ==================================================

@@ -2,9 +2,9 @@
 Admin routes for user management, system settings, and audit logs
 """
 from flask import request, jsonify
-from .. import db, bcrypt
+from backend.app import db, bcrypt
 from . import main
-from ..models import User, AuditLog, LoginHistory, Event, Ticket, Transaction
+from backend.app.models import User, AuditLog, LoginHistory, Event, Ticket, Transaction
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from datetime import datetime, timedelta
 from functools import wraps
