@@ -26,7 +26,7 @@ services:
         value: production
 
       - key: ALLOWED_ORIGINS
-        value: https://flex-it-six.vercel.app
+        value: https://flex-it-six.vercel.app,https://flex-it.onrender.com
 
 databases:
   - name: flexit-db

@@ -47,7 +47,7 @@ def setup_security_middleware(app):
         'style-src': ["'self'", "'unsafe-inline'"],
         'img-src': ["'self'", 'data:', 'https:'],
         'font-src': ["'self'", 'data:'],
-        'connect-src': ["'self'", 'localhost:*'],  # Allow local development
+        'connect-src': ["'self'", 'localhost:*', 'https://flex-it-six.vercel.app', 'https://flex-it.onrender.com'],  # Allow Vercel & Render frontends
         'frame-ancestors': ["'none'"],
     }
     
