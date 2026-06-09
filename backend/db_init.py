@@ -10,14 +10,14 @@ from pathlib import Path
 if os.environ.get('DATABASE_URL'):
     os.environ['DATABASE_URL'] = os.environ['DATABASE_URL'].replace('postgres://', 'postgresql://', 1)
 
-# Add parent directory to path so we can import backend
+# Add backend directory to path
 backend_dir = Path(__file__).parent
-sys.path.insert(0, str(backend_dir.parent))
+sys.path.insert(0, str(backend_dir))
 
 try:
     print("🔧 Initializing database for Render deployment...")
     
-    from backend.app import create_app, db, migrate
+    from app import create_app, db, migrate
     
     # Create Flask app context
     app = create_app()

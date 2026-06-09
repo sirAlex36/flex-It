@@ -5,8 +5,8 @@ import sys
 if os.environ.get('DATABASE_URL'):
     os.environ['DATABASE_URL'] = os.environ['DATABASE_URL'].replace('postgres://', 'postgresql://', 1)
 
-from backend.app import create_app, db
-import app.models
+from app import create_app, db
+from app import models
 
 app = create_app()
 
@@ -20,5 +20,4 @@ with app.app_context():
 
 if __name__ == "__main__":
     app.run
-
 

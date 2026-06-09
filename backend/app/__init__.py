@@ -34,7 +34,7 @@ SQLALCHEMY_ENGINE_OPTIONS = {
     "pool_pre_ping": True,
     "pool_recycle": 300,
 }
-config_name = os.getenv("FLASK_ENV", "development")
+config_name = os.getenv("FLASK_ENV", "production")
 
 def create_app():
     app = Flask(__name__)
@@ -103,8 +103,8 @@ def create_app():
     )
 
     # Issue #12: Setup structured logging
-    from .logging_config import setup_logging
-    setup_logging(app)
+    # from .logging_config import setup_logging
+    # setup_logging(app)
     
     # Issue #14, #15: Setup security middleware (HTTPS, CSRF)
     from .security_middleware import setup_security_middleware
