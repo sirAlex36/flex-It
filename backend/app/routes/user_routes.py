@@ -1,7 +1,7 @@
 from flask import request, jsonify
 from app import db, bcrypt
 from . import main
-from backend.app.models import User, LoginHistory
+from app.models import User, LoginHistory
 from flask_jwt_extended import create_access_token
 from datetime import datetime
 
