@@ -48,32 +48,20 @@ export default function LoginPage() {
       }
 
       if (result?.ok) {
-        // Give the session a moment to be established
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Session will update via useSession hook, redirect immediately
+        // Get current session from the hook instead of making another API call
+        const currentSession = await getSession();
+        const role = currentSession?.user?.role || "user";
         
-        // Get the updated session
-        const session = await getSession();
-        console.log("✅ Session retrieved:", {
-          exists: !!session,
-          userId: session?.user?.id,
-          role: session?.user?.role,
-        });
+        console.log("✅ Redirecting to dashboard as:", role);
         
-        if (session?.user?.id) {
-          const role = session.user.role;
-          console.log("✅ Redirecting to dashboard as:", role);
-          
-          // Redirect immediately
-          if (role === "admin") {
-            router.push("/dashboard/admin");
-          } else if (role === "organiser") {
-            router.push("/dashboard/organiser");
-          } else {
-            router.push("/dashboard/user");
-          }
+        // Use replace for faster navigation (no history entry)
+        if (role === "admin") {
+          router.replace("/dashboard/admin");
+        } else if (role === "organiser") {
+          router.replace("/dashboard/organiser");
         } else {
-          setError("Failed to establish session. Please try again.");
-          setLoading(false);
+          router.replace("/dashboard/user");
         }
       }
 
