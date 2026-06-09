@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { signIn, useSession, getSession } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,21 +48,10 @@ export default function LoginPage() {
       }
 
       if (result?.ok) {
-        // Session will update via useSession hook, redirect immediately
-        // Get current session from the hook instead of making another API call
-        const currentSession = await getSession();
-        const role = currentSession?.user?.role || "user";
-        
-        console.log("✅ Redirecting to dashboard as:", role);
-        
-        // Use replace for faster navigation (no history entry)
-        if (role === "admin") {
-          router.replace("/dashboard/admin");
-        } else if (role === "organiser") {
-          router.replace("/dashboard/organiser");
-        } else {
-          router.replace("/dashboard/user");
-        }
+        // ⚡ Redirect immediately without waiting for session fetch
+        // Session will update in the background via the useEffect hook
+        console.log("✅ Login successful, redirecting...");
+        router.replace("/dashboard/user");
       }
 
     } catch (err) {
