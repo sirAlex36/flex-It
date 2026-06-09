@@ -13,9 +13,9 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // 🔥 REDIRECT IF ALREADY AUTHENTICATED (FALLBACK)
+  // ✅ HANDLE REDIRECT AFTER SESSION IS READY
   useEffect(() => {
-    if (status === "authenticated" && session?.user?.id) {
+    if (status === "authenticated" && session?.user?.role) {
       const role = session.user.role;
 
       if (role === "admin") {
@@ -26,7 +26,7 @@ export default function LoginPage() {
         router.replace("/dashboard/user");
       }
     }
-  }, [status, session?.user?.id, router]);
+  }, [status, session, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,7 +34,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      
       const result = await signIn("credentials", {
         email,
         password,
@@ -48,27 +47,22 @@ export default function LoginPage() {
       }
 
       if (result?.ok) {
-        // ⚡ Redirect immediately without waiting for session fetch
-        // Session will update in the background via the useEffect hook
-        console.log("✅ Login successful, redirecting...");
-        router.replace("/dashboard/user");
+        console.log("Login successful - waiting for session update...");
+        // ❌ NO REDIRECT HERE (IMPORTANT FIX)
       }
-
     } catch (err) {
-      console.error("❌ Login error:", err);
+      console.error("Login error:", err);
       setError("Something went wrong. Try again.");
+    } finally {
       setLoading(false);
     }
   };
 
-  // 🔄 SHOW LOADER WHILE CHECKING SESSION
+  // 🔄 LOADING SESSION CHECK
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="h-12 w-12 border-b-2 border-blue-600 rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600">Checking session...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Checking session...</p>
       </div>
     );
   }
@@ -77,85 +71,52 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
 
-        {/* HEADER */}
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-extrabold text-gray-900">
-            Welcome Back
-          </h2>
-          <p className="text-sm text-gray-600 mt-2">
-            Sign in to your <span className="text-blue-600 font-semibold">Flex-It</span> account
-          </p>
+          <h2 className="text-3xl font-bold">Welcome Back</h2>
+          <p className="text-gray-600">Sign in to your account</p>
         </div>
 
-        {/* CARD */}
-        <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-200">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-xl shadow">
 
-            {/* EMAIL */}
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Email
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full mt-1 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
+          {/* EMAIL */}
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-3 border rounded"
+            required
+          />
 
-            {/* PASSWORD */}
-            <div>
-              <label className="text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full mt-1 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
+          {/* PASSWORD */}
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-3 border rounded"
+            required
+          />
 
-            {/* ERROR */}
-            {error && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded">
-                <p className="text-red-700 text-sm">{error}</p>
-              </div>
-            )}
+          {/* ERROR */}
+          {error && (
+            <p className="text-red-500 text-sm">{error}</p>
+          )}
 
-            {/* BUTTON */}
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full py-3 rounded-lg font-bold text-white transition ${
-                loading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-blue-600 hover:bg-blue-700"
-              }`}
-            >
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
+          {/* BUTTON */}
+          <button
+            type="submit"
+            disabled={loading}
+            className={`w-full p-3 text-white rounded ${
+              loading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
+            }`}
+          >
+            {loading ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
 
-          {/* SIGN UP */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              New here?{" "}
-              <a href="/sign-up" className="text-blue-600 font-medium hover:underline">
-                Create account
-              </a>
-            </p>
-          </div>
-        </div>
-
-        {/* FOOTER */}
-        <p className="text-center text-sm text-gray-500 mt-6">
-          Secure & encrypted login
+        <p className="text-center text-sm text-gray-500 mt-4">
+          Secure login powered by NextAuth
         </p>
       </div>
     </div>

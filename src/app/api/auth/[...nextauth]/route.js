@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { jwtDecode } from "jwt-decode";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
-const NEXTAUTH_URL = process.env.NEXTAUTH_URL || "https://flex-it-six.vercel.app/";
+const NEXTAUTH_URL = process.env.NEXTAUTH_URL || "https://flex-it-six.vercel.app";
 
 const authOptions = {
   providers: [
