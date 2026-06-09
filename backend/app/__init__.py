@@ -8,7 +8,7 @@ from .config import Config
 from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
-from flask_limiter import Limiter  # Issue #8: Rate limiting
+from flask_limiter import Limiter  
 from flask_limiter.util import get_remote_address
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -73,14 +73,10 @@ def create_app():
     bcrypt.init_app(app)
     limiter.init_app(app)  # Issue #8: Initialize rate limiter
 
-    # 🔥 CORS FIX (IMPORTANT)
-    # Add ProxyFix BEFORE CORS so headers are handled correctly
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_port=1)
     
     allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
     allowed_origins_list = [
-        "http://localhost:3000",
-        "http://localhost:5000",
         "https://flex-it-six.vercel.app",
         "https://flex-it-git-main-siralex36s-projects.vercel.app",
         "https://flex-it.onrender.com"
