@@ -130,7 +130,7 @@ const authOptions = {
     // This callback works with all providers
     async redirect({ url, baseUrl }) {
       // Handle redirects
-      if (url.startsWith("/")) {
+      if (url.startsWith("/flex-it-six.vercel.app")) {
         return `${baseUrl}${url}`;
       } else if (new URL(url).origin === baseUrl) {
         return url;
