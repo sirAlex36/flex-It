@@ -1,4 +1,5 @@
 import { getSession } from "next-auth/react";
+import { getEvents } from "@/lib/api";
 
 // API utility functions for backend communication
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
@@ -84,6 +85,25 @@ export async function apiCall(endpoint, options = {}, token = null) {
     throw error;
   }
 }
+const fetchDashboardData = async () => {
+  try {
+    setLoading(true);
+    
+    // ✅ Use your API client (it handles token automatically)
+    const eventsData = await getEvents();
+    setEvents(Array.isArray(eventsData) ? eventsData : []);
+    
+    // For users, you might need to use the API client too
+    const usersData = await getUsers();
+    setUsers(Array.isArray(usersData) ? usersData : []);
+    
+    setLoading(false);
+  } catch (err) {
+    console.error("Error fetching dashboard data:", err);
+    setError("Failed to load dashboard data");
+    setLoading(false);
+  }
+};
 
 // ============ EVENTS ============
 
