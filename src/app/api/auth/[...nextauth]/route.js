@@ -20,11 +20,8 @@ const authOptions = {
         }
 
         try {
-
-
-          // ⏱️ SET TIMEOUT TO PREVENT HANGING
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+          const timeout = setTimeout(() => controller.abort(), 10000);
 
           const response = await fetch(`${API_URL}/login`, {
             method: "POST",
@@ -44,42 +41,27 @@ const authOptions = {
             const contentType = response.headers.get("content-type");
             let error = {};
 
-            // Handle JSON responses
             if (contentType && contentType.includes("application/json")) {
               try {
                 error = await response.json();
               } catch (parseError) {
-                console.error("❌ Failed to parse JSON error response:", parseError);
                 error = { error: "Invalid JSON response from server" };
               }
             } else {
-              // Handle non-JSON responses (HTML error pages, etc.)
               const text = await response.text();
-              console.error("❌ Non-JSON error response:", text.substring(0, 200));
               error = { error: `Server error (${response.status}): ${response.statusText}` };
             }
 
-            console.error("❌ Login failed:", error);
             throw new Error(error.error || "Login failed");
           }
 
           const data = await response.json();
-          console.log("✅ Backend response received:", {
-            hasToken: !!data.access_token,
-            hasUser: !!data.user,
-          });
 
           if (!data.access_token) {
             throw new Error("No token received");
           }
 
-          // ✅ DECODE token and extract claims
           const payload = jwtDecode(data.access_token);
-          console.log("✅ Token decoded:\n", {
-            sub: payload.sub,
-            role: payload.role,
-            email: payload.email,
-          });
 
           const user = {
             id: payload.sub || data.user?.id,
@@ -89,15 +71,8 @@ const authOptions = {
             accessToken: data.access_token,
           };
 
-          console.log("✅ Returning user object:", {
-            id: user.id,
-            email: user.email,
-            role: user.role,
-          });
-
           return user;
         } catch (error) {
-          console.error("❌ Auth error:", error.message);
           if (error.name === "AbortError") {
             throw new Error("Authentication request timeout");
           }
@@ -109,13 +84,13 @@ const authOptions = {
 
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-    updateAge: 24 * 60 * 60, // 24 hours
+    maxAge: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
   },
 
   jwt: {
     secret: process.env.NEXTAUTH_SECRET || "c5d7bd68f56060e60d8c014d4f4e4d99d720d4049f0d9434ea0a710f6c7c483e",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: 30 * 24 * 60 * 60,
   },
 
   pages: {
@@ -127,15 +102,19 @@ const authOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.role = user.role;
+        token.accessToken = user.accessToken;
+        token.id = user.id;
       }
       return token;
     },
 
     async session({ session, token }) {
       session.user.role = token.role;
+      session.user.id = token.id;
+      session.user.accessToken = token.accessToken;
       return session;
     }
-  };
+  },
 
   secret: process.env.NEXTAUTH_SECRET || "c5d7bd68f56060e60d8c014d4f4e4d99d720d4049f0d9434ea0a710f6c7c483e",
 };
