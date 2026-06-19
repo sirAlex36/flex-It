@@ -11,7 +11,6 @@ import {
   HeartIcon,
   BellIcon,
   MapPinIcon,
-  CurrencyDollarIcon,
   CheckCircleIcon,
   XMarkIcon,
   ExclamationCircleIcon,
@@ -19,26 +18,15 @@ import {
   ClockIcon,
   SparklesIcon,
   ArrowRightIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  AdjustmentsHorizontalIcon,
-  StarIcon,
-  ShareIcon,
   CreditCardIcon,
   ShieldCheckIcon,
   HomeIcon,
   FireIcon,
-  TrophyIcon,
-  GiftIcon,
-  ChatBubbleLeftIcon,
-  EllipsisHorizontalIcon,
 } from "@heroicons/react/24/outline";
 import {
   HeartIcon as HeartSolid,
-  StarIcon as StarSolid,
-  FireIcon as FireSolid,
 } from "@heroicons/react/24/solid";
-import { format, isAfter, isToday, differenceInDays, isWithinInterval, subDays } from "date-fns";
+import { format, isAfter, isToday, differenceInDays } from "date-fns";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
 
@@ -49,16 +37,18 @@ const fadeInUp = {
   exit: { opacity: 0, y: -30 },
 };
 
+const staggerContainer = {
+  animate: {
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+};
+
 const scaleIn = {
   initial: { scale: 0.9, opacity: 0 },
   animate: { scale: 1, opacity: 1 },
   exit: { scale: 0.9, opacity: 0 },
-};
-
-const slideIn = {
-  initial: { x: -20, opacity: 0 },
-  animate: { x: 0, opacity: 1 },
-  exit: { x: 20, opacity: 0 },
 };
 
 // ========== COMPONENTS ==========
@@ -187,7 +177,6 @@ const EventCard = ({ event, onBook, isFavorite, onToggleFavorite, index }) => {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
         
-        {/* Favorite Button */}
         <button
           onClick={() => onToggleFavorite(event.id)}
           className="absolute top-3 right-3 p-2.5 bg-white/90 backdrop-blur-sm rounded-full hover:bg-white transition-all duration-200 hover:scale-110 z-10"
@@ -199,7 +188,6 @@ const EventCard = ({ event, onBook, isFavorite, onToggleFavorite, index }) => {
           )}
         </button>
 
-        {/* Status Badges */}
         <div className="absolute bottom-3 left-3 flex flex-wrap gap-2 z-10">
           {isThisWeek && isUpcoming && (
             <span className="px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center gap-1">
@@ -214,7 +202,6 @@ const EventCard = ({ event, onBook, isFavorite, onToggleFavorite, index }) => {
           )}
         </div>
 
-        {/* Event Title Overlay */}
         <div className="absolute bottom-3 left-3 right-24 z-10">
           <h3 className="text-lg font-bold text-white line-clamp-1">{event.name}</h3>
           <p className="text-xs text-white/80 line-clamp-1">{event.venue}</p>
@@ -390,7 +377,6 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
             </div>
 
             <div className="p-6 space-y-6">
-              {/* Event Summary */}
               <div className="rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50 p-4">
                 <p className="text-sm text-gray-600 mb-1">Selected Event</p>
                 <p className="font-semibold text-gray-900">{event.name}</p>
@@ -400,7 +386,6 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                 <p className="text-sm text-gray-500">{event.venue}</p>
               </div>
 
-              {/* Ticket Type Selection */}
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-3">
                   Select Ticket Type
@@ -438,7 +423,6 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                 </div>
               </div>
 
-              {/* Quantity Selection */}
               <div>
                 <label className="block text-sm font-semibold text-gray-900 mb-3">
                   Number of Tickets
@@ -460,7 +444,6 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                 </div>
               </div>
 
-              {/* Guest Info */}
               {!currentUser && (
                 <div className="space-y-4">
                   <div>
@@ -502,7 +485,6 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                 </div>
               )}
 
-              {/* Price Summary */}
               <div className="border-t border-gray-200 pt-4">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-gray-600">Subtotal</span>
@@ -512,7 +494,6 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                 </div>
               </div>
 
-              {/* Terms */}
               <label className="flex items-center gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -526,7 +507,6 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                 </span>
               </label>
 
-              {/* Action Buttons */}
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={onClose}
@@ -578,7 +558,6 @@ export default function UserDashboard() {
   const [stats, setStats] = useState({ totalEvents: 0, upcomingTickets: 0, favoritesCount: 0 });
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // Handle scroll for header effect
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
@@ -789,7 +768,6 @@ export default function UserDashboard() {
     <div className="min-h-screen">
       <GradientBackground />
 
-      {/* Header */}
       <motion.header
         initial={{ y: -100 }}
         animate={{ y: 0 }}
@@ -848,7 +826,6 @@ export default function UserDashboard() {
       </motion.header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Alerts */}
         <AnimatePresence>
           {error && (
             <motion.div
@@ -885,10 +862,8 @@ export default function UserDashboard() {
           )}
         </AnimatePresence>
 
-        {/* Greeting Banner */}
         <GreetingBanner user={session?.user} stats={stats} />
 
-        {/* Stats */}
         {session?.user && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -924,7 +899,6 @@ export default function UserDashboard() {
           </motion.div>
         )}
 
-        {/* Quick Actions */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -978,7 +952,6 @@ export default function UserDashboard() {
           </motion.button>
         </motion.div>
 
-        {/* Search Bar */}
         {activeTab === "events" && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -998,7 +971,6 @@ export default function UserDashboard() {
           </motion.div>
         )}
 
-        {/* Content */}
         <AnimatePresence mode="wait">
           {activeTab === "events" && (
             <motion.div
