@@ -84,27 +84,7 @@ export async function apiCall(endpoint, options = {}, token = null) {
     console.error(`❌ API call failed for ${endpoint}:`, error.message);
     throw error;
   }
-}
-const fetchDashboardData = async () => {
-  try {
-    setLoading(true);
-    
-    // ✅ Use your API client (it handles token automatically)
-    const eventsData = await getEvents();
-    setEvents(Array.isArray(eventsData) ? eventsData : []);
-    
-    // For users, you might need to use the API client too
-    const usersData = await getUsers();
-    setUsers(Array.isArray(usersData) ? usersData : []);
-    
-    setLoading(false);
-  } catch (err) {
-    console.error("Error fetching dashboard data:", err);
-    setError("Failed to load dashboard data");
-    setLoading(false);
-  }
-};
-
+}.
 // ============ EVENTS ============
 
 export async function getEvents(filters = {}) {

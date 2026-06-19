@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
@@ -72,10 +71,7 @@ const DataTable = ({ columns, data, actions }) => {
         <thead>
           <tr className="bg-gray-50 border-b border-gray-200">
             {columns.map((col) => (
-              <th
-                key={col}
-                className="px-6 py-4 text-left text-sm font-semibold text-gray-700"
-              >
+              <th key={col} className="px-6 py-4 text-left text-sm font-semibold text-gray-700">
                 {col}
               </th>
             ))}
@@ -88,10 +84,7 @@ const DataTable = ({ columns, data, actions }) => {
         </thead>
         <tbody>
           {data.map((row, idx) => (
-            <tr
-              key={idx}
-              className="border-b border-gray-100 hover:bg-gray-50 transition"
-            >
+            <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition">
               {columns.map((col) => (
                 <td key={col} className="px-6 py-4 text-sm text-gray-700">
                   {row[col]}
@@ -130,10 +123,7 @@ const Modal = ({ isOpen, title, children, onClose, onSubmit, submitLabel = "Save
       <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-8 my-8">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-2xl font-bold text-gray-900">{title}</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition">
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
@@ -221,7 +211,7 @@ export default function AdminDashboard() {
     });
   };
 
-  // ✅ FIXED: Get token from session.user.accessToken
+  // ✅ Get auth headers
   const getAuthHeaders = () => {
     const token = session?.user?.accessToken;
     if (!token) {
@@ -234,27 +224,23 @@ export default function AdminDashboard() {
     };
   };
 
-  // ✅ FIXED: Fetch dashboard data with correct token
+  // ✅ Fetch dashboard data
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const headers = getAuthHeaders();
+      setError("");
       
+      const headers = getAuthHeaders();
       if (!headers) {
         setError("Authentication token not found. Please login again.");
         setLoading(false);
         return;
       }
 
-      console.log("🔑 Fetching data with token:", headers.Authorization.substring(0, 30) + "...");
-
       const [eventsRes, usersRes] = await Promise.all([
         fetch(`${API_URL}/events`, { headers }),
         fetch(`${API_URL}/users`, { headers }),
       ]);
-
-      console.log("📡 Events response status:", eventsRes.status);
-      console.log("📡 Users response status:", usersRes.status);
 
       if (eventsRes.ok) {
         const eventsData = await eventsRes.json();
@@ -262,12 +248,10 @@ export default function AdminDashboard() {
       } else if (eventsRes.status === 401) {
         console.error("❌ Unauthorized - token invalid or expired");
         setError("Session expired. Please login again.");
-        // Clear invalid session
         handleSignOut();
         return;
       } else {
         console.error("❌ Failed to fetch events:", eventsRes.status);
-        setError(`Failed to load events (${eventsRes.status})`);
       }
 
       if (usersRes.ok) {
@@ -290,26 +274,19 @@ export default function AdminDashboard() {
     }
   };
 
-  // ✅ FIXED: Handle sign out properly
+  // ✅ Handle sign out
   const handleSignOut = async () => {
     try {
-      // Clear local storage
       localStorage.removeItem("token");
       sessionStorage.clear();
       
-      // Clear cookies
       document.cookie.split(";").forEach((c) => {
         document.cookie = c
           .replace(/^ +/, "")
           .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
       });
 
-      // Sign out
-      await signOut({ 
-        redirect: false,
-      });
-      
-      // Hard redirect
+      await signOut({ redirect: false });
       window.location.href = "/login";
     } catch (error) {
       console.error("Sign-out error:", error);
@@ -317,23 +294,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Protection - redirect if not admin
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/login");
-    } else if (status === "authenticated" && session?.user?.role !== "admin") {
-      router.push("/dashboard/user");
-    }
-  }, [status, session, router]);
-
-  // Fetch data from backend
-  useEffect(() => {
-    if (status === "authenticated" && session?.user?.role === "admin") {
-      fetchDashboardData();
-    }
-  }, [session, status]);
-
-  // ✅ FIXED: Create event with correct token
+  // ✅ Create event
   const handleCreateEvent = async () => {
     try {
       const headers = getAuthHeaders();
@@ -372,6 +333,7 @@ export default function AdminDashboard() {
     }
   };
 
+  // ✅ Edit event
   const handleEditEvent = (event) => {
     setSelectedEvent(event);
     setEventForm({
@@ -386,7 +348,7 @@ export default function AdminDashboard() {
     setShowEventModal(true);
   };
 
-  // ✅ FIXED: Update event with correct token
+  // ✅ Update event
   const handleUpdateEvent = async () => {
     try {
       const headers = getAuthHeaders();
@@ -417,7 +379,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // ✅ FIXED: Delete event with correct token
+  // ✅ Delete event
   const handleDeleteEvent = async (event) => {
     if (!confirm(`Are you sure you want to delete "${event.name}"? This cannot be undone.`)) {
       return;
@@ -448,10 +410,28 @@ export default function AdminDashboard() {
     }
   };
 
+  // ✅ View event
   const handleViewEvent = (event) => {
     router.push(`/event/${event.id}`);
   };
 
+  // ✅ Protection - redirect if not admin
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    } else if (status === "authenticated" && session?.user?.role !== "admin") {
+      router.push("/dashboard/user");
+    }
+  }, [status, session, router]);
+
+  // ✅ Fetch data when authenticated
+  useEffect(() => {
+    if (status === "authenticated" && session?.user?.role === "admin") {
+      fetchDashboardData();
+    }
+  }, [session, status]);
+
+  // Loading state
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
@@ -547,7 +527,6 @@ export default function AdminDashboard() {
         {/* Overview Tab */}
         {activeTab === "overview" && (
           <div className="space-y-8">
-            {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <StatCard icon={CalendarIcon} label="Total Events" value={totalEvents} color="blue" />
               <StatCard icon={UsersIcon} label="Total Users" value={totalUsers} color="green" />
@@ -565,7 +544,6 @@ export default function AdminDashboard() {
               />
             </div>
 
-            {/* Quick Actions */}
             <button
               onClick={() => setShowEventModal(true)}
               className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium hover:shadow-lg transition"
