@@ -21,7 +21,7 @@ const authOptions = {
 
         try {
 
-          
+
           // ⏱️ SET TIMEOUT TO PREVENT HANGING
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
@@ -43,7 +43,7 @@ const authOptions = {
           if (!response.ok) {
             const contentType = response.headers.get("content-type");
             let error = {};
-            
+
             // Handle JSON responses
             if (contentType && contentType.includes("application/json")) {
               try {
@@ -58,7 +58,7 @@ const authOptions = {
               console.error("❌ Non-JSON error response:", text.substring(0, 200));
               error = { error: `Server error (${response.status}): ${response.statusText}` };
             }
-            
+
             console.error("❌ Login failed:", error);
             throw new Error(error.error || "Login failed");
           }
@@ -124,34 +124,18 @@ const authOptions = {
   },
 
   callbacks: {
-    async jwt({ token, user, account }) {
-      // On sign in
+    async jwt({ token, user }) {
       if (user) {
-        console.log("🔐 JWT Callback - User object:", user);
-        token.id = user.id;
         token.role = user.role;
-        token.name = user.name;
-        token.accessToken = user.accessToken;
       }
       return token;
     },
 
     async session({ session, token }) {
-      console.log("🔐 Session Callback - Token:", {
-        id: token.id,
-        role: token.role,
-        name: token.name,
-      });
-      
-      if (token && session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.name = token.name;
-        session.accessToken = token.accessToken;
-      }
+      session.user.role = token.role;
       return session;
-    },
-  },
+    }
+  };
 
   secret: process.env.NEXTAUTH_SECRET || "c5d7bd68f56060e60d8c014d4f4e4d99d720d4049f0d9434ea0a710f6c7c483e",
 };
