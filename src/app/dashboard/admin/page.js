@@ -221,35 +221,99 @@ export default function AdminDashboard() {
     });
   };
 
-  // Define fetchDashboardData before hooks
+  // ✅ FIXED: Get token from session.user.accessToken
+  const getAuthHeaders = () => {
+    const token = session?.user?.accessToken;
+    if (!token) {
+      console.error("❌ No access token found");
+      return null;
+    }
+    return {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    };
+  };
+
+  // ✅ FIXED: Fetch dashboard data with correct token
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${session?.accessToken}`,
-      };
+      const headers = getAuthHeaders();
+      
+      if (!headers) {
+        setError("Authentication token not found. Please login again.");
+        setLoading(false);
+        return;
+      }
+
+      console.log("🔑 Fetching data with token:", headers.Authorization.substring(0, 30) + "...");
 
       const [eventsRes, usersRes] = await Promise.all([
         fetch(`${API_URL}/events`, { headers }),
         fetch(`${API_URL}/users`, { headers }),
       ]);
 
+      console.log("📡 Events response status:", eventsRes.status);
+      console.log("📡 Users response status:", usersRes.status);
+
       if (eventsRes.ok) {
         const eventsData = await eventsRes.json();
         setEvents(Array.isArray(eventsData) ? eventsData : []);
+      } else if (eventsRes.status === 401) {
+        console.error("❌ Unauthorized - token invalid or expired");
+        setError("Session expired. Please login again.");
+        // Clear invalid session
+        handleSignOut();
+        return;
+      } else {
+        console.error("❌ Failed to fetch events:", eventsRes.status);
+        setError(`Failed to load events (${eventsRes.status})`);
       }
 
       if (usersRes.ok) {
         const usersData = await usersRes.json();
         setUsers(Array.isArray(usersData) ? usersData : []);
+      } else if (usersRes.status === 401) {
+        console.error("❌ Unauthorized - token invalid or expired");
+        setError("Session expired. Please login again.");
+        handleSignOut();
+        return;
+      } else {
+        console.error("❌ Failed to fetch users:", usersRes.status);
       }
 
       setLoading(false);
     } catch (err) {
       console.error("Error fetching dashboard data:", err);
-      setError("Failed to load dashboard data");
+      setError("Failed to load dashboard data. Please try again.");
       setLoading(false);
+    }
+  };
+
+  // ✅ FIXED: Handle sign out properly
+  const handleSignOut = async () => {
+    try {
+      // Clear local storage
+      localStorage.removeItem("token");
+      sessionStorage.clear();
+      
+      // Clear cookies
+      document.cookie.split(";").forEach((c) => {
+        document.cookie = c
+          .replace(/^ +/, "")
+          .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+
+      // Sign out
+      await signOut({ 
+        redirect: false,
+      });
+      
+      // Hard redirect
+      window.location.href = "/login";
+    } catch (error) {
+      console.error("Sign-out error:", error);
+      window.location.href = "/login";
     }
   };
 
@@ -264,34 +328,23 @@ export default function AdminDashboard() {
 
   // Fetch data from backend
   useEffect(() => {
-    if (session?.user?.id) {
+    if (status === "authenticated" && session?.user?.role === "admin") {
       fetchDashboardData();
     }
-  }, [session]);
+  }, [session, status]);
 
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="h-12 w-12 border-b-2 border-blue-600 rounded-full animate-spin mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!session?.user?.id) {
-    return null; // Redirect happens in useEffect
-  }
-
+  // ✅ FIXED: Create event with correct token
   const handleCreateEvent = async () => {
     try {
+      const headers = getAuthHeaders();
+      if (!headers) {
+        setError("Authentication token not found");
+        return;
+      }
+
       const response = await fetch(`${API_URL}/events`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.accessToken}`,
-        },
+        headers,
         body: JSON.stringify(eventForm),
       });
 
@@ -310,7 +363,7 @@ export default function AdminDashboard() {
         });
         fetchDashboardData();
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         setError(errorData.error || "Failed to create event");
       }
     } catch (err) {
@@ -333,14 +386,18 @@ export default function AdminDashboard() {
     setShowEventModal(true);
   };
 
+  // ✅ FIXED: Update event with correct token
   const handleUpdateEvent = async () => {
     try {
+      const headers = getAuthHeaders();
+      if (!headers) {
+        setError("Authentication token not found");
+        return;
+      }
+
       const response = await fetch(`${API_URL}/events/${selectedEvent.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.accessToken}`,
-        },
+        headers,
         body: JSON.stringify(eventForm),
       });
 
@@ -351,7 +408,7 @@ export default function AdminDashboard() {
         setSelectedEvent(null);
         fetchDashboardData();
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         setError(errorData.error || "Failed to update event");
       }
     } catch (err) {
@@ -360,25 +417,29 @@ export default function AdminDashboard() {
     }
   };
 
+  // ✅ FIXED: Delete event with correct token
   const handleDeleteEvent = async (event) => {
     if (!confirm(`Are you sure you want to delete "${event.name}"? This cannot be undone.`)) {
       return;
     }
 
     try {
+      const headers = getAuthHeaders();
+      if (!headers) {
+        setError("Authentication token not found");
+        return;
+      }
+
       const response = await fetch(`${API_URL}/events/${event.id}`, {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.accessToken}`,
-        },
+        headers,
       });
 
       if (response.ok) {
         setSuccess("Event deleted successfully!");
         fetchDashboardData();
       } else {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({}));
         setError(errorData.error || "Failed to delete event");
       }
     } catch (err) {
@@ -407,10 +468,10 @@ export default function AdminDashboard() {
   }
 
   // Calculate stats
-  const totalRevenue = 0; // Transactions endpoint not available
+  const totalRevenue = 0;
   const totalUsers = users.length;
   const totalEvents = events.length;
-  const successfulTransactions = 0; // Transactions endpoint not available
+  const successfulTransactions = 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100">
@@ -441,7 +502,7 @@ export default function AdminDashboard() {
                 <p className="text-xs text-gray-500">Admin</p>
               </div>
               <button
-                onClick={() => signOut({ redirect: true, callbackUrl: "/login" })}
+                onClick={handleSignOut}
                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
                 title="Sign out"
               >
@@ -493,7 +554,7 @@ export default function AdminDashboard() {
               <StatCard
                 icon={CreditCardIcon}
                 label="Total Revenue"
-                value={`$${(totalRevenue / 100).toFixed(2)}`}
+                value={`KES ${totalRevenue}`}
                 color="purple"
               />
               <StatCard
@@ -539,7 +600,7 @@ export default function AdminDashboard() {
                   venue: e.venue,
                 }))}
                 actions={[
-                  { label: "View", icon: EyeIcon, onClick: (row) => handleViewEvent(row) },
+                  { label: "View", icon: EyeIcon, onClick: (row) => handleViewEvent(events.find(e => e.id === row.id)) },
                   { label: "Edit", icon: PencilIcon, onClick: (row) => handleEditEvent(events.find(e => e.id === row.id)) },
                   { label: "Delete", icon: TrashIcon, onClick: (row) => handleDeleteEvent(events.find(e => e.id === row.id)) },
                 ]}
