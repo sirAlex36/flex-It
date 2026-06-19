@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { signIn, useSession } from "next-auth/react";
+import { signIn, useSession, getSession } from "next-auth/react"; // ✅ Added getSession import
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,22 +11,31 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // ✅ Handle reset parameter
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('reset') === 'true') {
+      console.log("🔄 Performing hard reset...");
+      
       // Clear everything
       localStorage.clear();
       sessionStorage.clear();
+      
       document.cookie.split(";").forEach((c) => {
         document.cookie = c
           .replace(/^ +/, "")
           .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
       });
+      
       // Remove the query param
       window.history.replaceState({}, document.title, "/login");
+      
+      console.log("✅ Reset complete");
     }
   }, []);
 
+  // ✅ Handle redirect after login
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role) {
       const role = session.user.role;
@@ -39,37 +48,53 @@ export default function LoginPage() {
     }
   }, [status, session, router]);
 
+  // ✅ Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      // In your login page, after successful login
       const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
       });
 
-      if (result?.ok) {
-        // Get the session to extract token
-        const session = await getSession();
-        if (session?.user?.accessToken) {
-          localStorage.setItem("token", session.user.accessToken);
-        }
+    
+
+      if (result?.error) {
+        setError(result.error || "Invalid credentials");
+        setLoading(false);
+        return;
       }
 
-      // Success - let useEffect handle redirect
+      if (result?.ok) {
+        console.log("✅ Login successful");
+        
+        // ✅ Get the session to extract token
+        try {
+          const sessionData = await getSession();
+          if (sessionData?.user?.accessToken) {
+            localStorage.setItem("token", sessionData.user.accessToken);
+            console.log("✅ Token saved to localStorage");
+          }
+        } catch (err) {
+          console.error("Error getting session:", err);
+        }
+        
+        // The useEffect will handle redirect
+      }
+      
       setLoading(false);
-
     } catch (err) {
       console.error("Login error:", err);
-      setError("Something went wrong. Please try again.");
+      setError(err.message || "Something went wrong. Please try again.");
       setLoading(false);
     }
   };
 
+  // Loading state
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -89,6 +114,11 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold">Welcome Back</h2>
           <p className="text-gray-600">Sign in to your account</p>
+          <p className="text-xs text-gray-400 mt-2">
+            <a href="/login?reset=true" className="text-blue-600 hover:underline">
+              Reset session if having issues
+            </a>
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-xl shadow">
@@ -131,8 +161,9 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full p-3 text-white rounded transition-colors ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-              }`}
+            className={`w-full p-3 text-white rounded transition-colors ${
+              loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
             {loading ? "Signing in..." : "Sign In"}
           </button>

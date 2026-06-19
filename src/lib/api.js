@@ -1,22 +1,23 @@
+// lib/api.js
 import { getSession } from "next-auth/react";
-import { getEvents } from "@/lib/api";
 
-// API utility functions for backend communication
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
 
 export async function apiCall(endpoint, options = {}, token = null) {
-  // Try to get token from options.headers.Authorization first, then from parameter, then from NextAuth session
   let authToken = token;
   
   if (options.headers?.Authorization) {
     authToken = options.headers.Authorization.replace("Bearer ", "");
   }
 
-  
   if (!authToken && typeof window !== "undefined") {
-  const session = await getSession();
-  authToken = session?.user?.accessToken || localStorage.getItem("token");
-}
+    try {
+      const session = await getSession();
+      authToken = session?.user?.accessToken || localStorage.getItem("token");
+    } catch (error) {
+      console.error("❌ Error getting session:", error);
+    }
+  }
 
   const headers = {
     "Content-Type": "application/json",
@@ -36,55 +37,46 @@ export async function apiCall(endpoint, options = {}, token = null) {
       headers,
     });
 
-    // ✅ Handle 401 specifically
+    // Handle 401 specifically
     if (response.status === 401) {
       console.error("❌ Unauthorized request to:", endpoint);
-      // Clear invalid token
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("token");
-      }
+      localStorage.removeItem("token");
       
-      // Try to refresh session or redirect to login
-      if (typeof window !== "undefined" && !endpoint.includes("/login")) {
-        // You might want to redirect to login here
-        // window.location.href = "/login";
+      if (typeof window !== "undefined" && !window.location.pathname.includes("/login")) {
+        window.location.href = "/login";
       }
       
       throw new Error("Session expired. Please login again.");
     }
 
-    if (!response.ok) {
-      const contentType = response.headers.get("content-type");
-      let errorMessage = `API Error: ${response.status}`;
-      
-      if (contentType && contentType.includes("application/json")) {
-        try {
-          const error = await response.json();
-          errorMessage = error.error || error.message || errorMessage;
-        } catch (parseError) {
-          // If JSON parsing fails, use status text
-          errorMessage = response.statusText || errorMessage;
-        }
-      } else {
-        const text = await response.text();
-        errorMessage = text || errorMessage;
-      }
-      
-      throw new Error(errorMessage);
+    // Handle empty responses
+    if (response.status === 204) {
+      return null;
     }
 
-    // Handle empty responses
     const contentLength = response.headers.get("content-length");
     if (contentLength === "0") {
       return null;
     }
 
-    return await response.json();
+    // Parse JSON safely
+    const text = await response.text();
+    if (!text) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      console.error("❌ Failed to parse JSON:", text.substring(0, 100));
+      throw new Error("Invalid response from server");
+    }
   } catch (error) {
     console.error(`❌ API call failed for ${endpoint}:`, error.message);
     throw error;
   }
-}.
+}
+
 // ============ EVENTS ============
 
 export async function getEvents(filters = {}) {
