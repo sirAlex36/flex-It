@@ -7,28 +7,20 @@ import { signIn, useSession } from "next-auth/react";
 export default function LoginPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  //  HANDLE REDIRECT BASED ON ROLE
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role) {
       const role = session.user.role;
-      console.log("User role detected:", role);
-
-      // Role-based redirect
       const redirectPaths = {
         admin: "/dashboard/admin",
         organiser: "/dashboard/organiser",
         user: "/dashboard/user",
       };
-
-      const redirectPath = redirectPaths[role] || "/dashboard/user";
-      console.log("Redirecting to:", redirectPath);
-      router.replace(redirectPath);
+      router.replace(redirectPaths[role] || "/dashboard/user");
     }
   }, [status, session, router]);
 
@@ -38,33 +30,31 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      console.log("Attempting login with email:", email);
-      
-      //  SIGN IN WITH REDIRECT: FALSE
       const result = await signIn("credentials", {
         email,
         password,
-        redirect: false, 
+        redirect: false,
       });
 
+      console.log("SignIn result:", result);
 
       if (result?.error) {
+        // Display the error message from the server
         setError(result.error || "Invalid credentials");
         setLoading(false);
         return;
       }
 
-     
+      // Success - let useEffect handle redirect
       setLoading(false);
       
     } catch (err) {
       console.error("Login error:", err);
-      setError(err.message || "Something went wrong. Try again.");
+      setError("Something went wrong. Please try again.");
       setLoading(false);
     }
   };
 
-  //  LOADING STATE
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -133,10 +123,6 @@ export default function LoginPage() {
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
-
-        <p className="text-center text-sm text-gray-500 mt-4">
-          Secure login powered by NextAuth
-        </p>
       </div>
     </div>
   );

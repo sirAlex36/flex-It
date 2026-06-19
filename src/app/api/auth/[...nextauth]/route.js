@@ -2,7 +2,6 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { jwtDecode } from "jwt-decode";
 
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 if (!API_URL) {
@@ -93,7 +92,6 @@ const authOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 
-  //  Add proper secret handling
   secret: process.env.NEXTAUTH_SECRET,
 
   pages: {
@@ -101,8 +99,11 @@ const authOptions = {
     error: "/login",
   },
 
+  // FIX: Only use callbacks that work with Credentials provider
   callbacks: {
-    async jwt({ token, user }) {
+    //  This callback works with all providers
+    async jwt({ token, user, account, profile, isNewUser }) {
+      // When user signs in, add user data to token
       if (user) {
         token.id = user.id;
         token.role = user.role;
@@ -113,7 +114,9 @@ const authOptions = {
       return token;
     },
 
+    // This callback works with all providers
     async session({ session, token }) {
+      // Pass token data to session
       session.user = {
         id: token.id,
         role: token.role,
@@ -124,20 +127,18 @@ const authOptions = {
       return session;
     },
 
+    // This callback works with all providers
     async redirect({ url, baseUrl }) {
-      // Allow relative URLs
+      // Handle redirects
       if (url.startsWith("/")) {
         return `${baseUrl}${url}`;
-      }
-      // Allow same-origin URLs
-      else if (new URL(url).origin === baseUrl) {
+      } else if (new URL(url).origin === baseUrl) {
         return url;
       }
       return baseUrl;
     },
   },
 
-  //  Add proper cookie configuration
   cookies: {
     sessionToken: {
       name: process.env.NODE_ENV === "production" 
@@ -152,7 +153,7 @@ const authOptions = {
     },
   },
 
-  
+  debug: process.env.NODE_ENV === "development",
 };
 
 const handler = NextAuth(authOptions);
