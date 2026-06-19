@@ -11,23 +11,11 @@ export async function apiCall(endpoint, options = {}, token = null) {
     authToken = options.headers.Authorization.replace("Bearer ", "");
   }
 
-  // ✅ FIX: Get token from session correctly
+  
   if (!authToken && typeof window !== "undefined") {
-    try {
-      const session = await getSession();
-      // ✅ CORRECT: Token is in session.user.accessToken
-      authToken = session?.user?.accessToken || localStorage.getItem("token");
-      
-      // Debug: Log if token is found
-      if (authToken) {
-        console.log("✅ Token found in session");
-      } else {
-        console.warn("⚠️ No token found in session");
-      }
-    } catch (error) {
-      console.error("Error getting session:", error);
-    }
-  }
+  const session = await getSession();
+  authToken = session?.user?.accessToken || localStorage.getItem("token");
+}
 
   const headers = {
     "Content-Type": "application/json",

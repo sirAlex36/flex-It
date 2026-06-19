@@ -30,24 +30,24 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // In your login page, after successful login
       const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
       });
 
-      console.log("SignIn result:", result);
-
-      if (result?.error) {
-        // Display the error message from the server
-        setError(result.error || "Invalid credentials");
-        setLoading(false);
-        return;
+      if (result?.ok) {
+        // Get the session to extract token
+        const session = await getSession();
+        if (session?.user?.accessToken) {
+          localStorage.setItem("token", session.user.accessToken);
+        }
       }
 
       // Success - let useEffect handle redirect
       setLoading(false);
-      
+
     } catch (err) {
       console.error("Login error:", err);
       setError("Something went wrong. Please try again.");
@@ -116,9 +116,8 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className={`w-full p-3 text-white rounded transition-colors ${
-              loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-            }`}
+            className={`w-full p-3 text-white rounded transition-colors ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+              }`}
           >
             {loading ? "Signing in..." : "Sign In"}
           </button>
