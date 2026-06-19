@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -26,30 +26,143 @@ import {
   ShareIcon,
   CreditCardIcon,
   ShieldCheckIcon,
+  HomeIcon,
+  FireIcon,
+  TrophyIcon,
+  GiftIcon,
+  ChatBubbleLeftIcon,
+  EllipsisHorizontalIcon,
 } from "@heroicons/react/24/outline";
 import {
   HeartIcon as HeartSolid,
   StarIcon as StarSolid,
+  FireIcon as FireSolid,
 } from "@heroicons/react/24/solid";
-import { format, isAfter, isToday, differenceInDays } from "date-fns";
+import { format, isAfter, isToday, differenceInDays, isWithinInterval, subDays } from "date-fns";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
 
-// Animation variants
+// ========== ANIMATION VARIANTS ==========
 const fadeInUp = {
-  initial: { opacity: 0, y: 20 },
+  initial: { opacity: 0, y: 30 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -20 },
+  exit: { opacity: 0, y: -30 },
 };
 
-const staggerContainer = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
+const scaleIn = {
+  initial: { scale: 0.9, opacity: 0 },
+  animate: { scale: 1, opacity: 1 },
+  exit: { scale: 0.9, opacity: 0 },
 };
 
+const slideIn = {
+  initial: { x: -20, opacity: 0 },
+  animate: { x: 0, opacity: 1 },
+  exit: { x: 20, opacity: 0 },
+};
+
+// ========== COMPONENTS ==========
+
+// Gradient Background
+const GradientBackground = () => (
+  <div className="fixed inset-0 -z-10 overflow-hidden">
+    <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-gray-100" />
+    <div className="absolute top-0 -right-40 w-80 h-80 bg-blue-400/20 rounded-full blur-3xl" />
+    <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-indigo-400/20 rounded-full blur-3xl" />
+    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-purple-400/10 rounded-full blur-3xl" />
+  </div>
+);
+
+// Greeting Banner
+const GreetingBanner = ({ user, stats }) => {
+  const hour = new Date().getHours();
+  let greeting = "Good evening";
+  let emoji = "🌙";
+  if (hour < 12) { greeting = "Good morning"; emoji = "🌅"; }
+  else if (hour < 17) { greeting = "Good afternoon"; emoji = "☀️"; }
+
+  const upcomingEvents = stats.upcomingTickets || 0;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 p-8 text-white shadow-2xl"
+    >
+      <div className="absolute inset-0 opacity-20">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/30 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/30 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
+      </div>
+      
+      <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-blue-200">
+            {greeting} {emoji}
+          </p>
+          <h1 className="text-3xl md:text-4xl font-bold mt-1">
+            {user?.name ? `Welcome back, ${user.name.split(' ')[0]}!` : "Welcome to Flex-It!"}
+          </h1>
+          <p className="text-blue-100 mt-2 max-w-xl">
+            {upcomingEvents > 0 
+              ? `You have ${upcomingEvents} upcoming ${upcomingEvents === 1 ? 'event' : 'events'} waiting for you!`
+              : "Discover amazing events and book your tickets today."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="px-6 py-3 bg-white/20 backdrop-blur-sm rounded-2xl text-sm font-semibold hover:bg-white/30 transition-all"
+          >
+            <span className="flex items-center gap-2">
+              <SparklesIcon className="w-4 h-4" />
+              Explore Events
+            </span>
+          </motion.button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// Stats Card
+const StatsCard = ({ icon: Icon, label, value, color, subtitle, trend }) => {
+  const colors = {
+    blue: "from-blue-500 to-blue-600",
+    purple: "from-purple-500 to-purple-600",
+    pink: "from-pink-500 to-rose-500",
+    green: "from-emerald-500 to-green-600",
+    orange: "from-orange-500 to-amber-600",
+  };
+
+  return (
+    <motion.div
+      whileHover={{ y: -4 }}
+      className="relative group bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100"
+    >
+      <div className="absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-5 rounded-2xl transition-opacity duration-300" />
+      
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-500">{label}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
+          {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
+          {trend && (
+            <p className={`text-xs font-medium mt-2 ${trend > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+              {trend > 0 ? '↑' : '↓'} {Math.abs(trend)}% from last month
+            </p>
+          )}
+        </div>
+        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${colors[color]} flex items-center justify-center shadow-lg`}>
+          <Icon className="w-6 h-6 text-white" />
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+// Event Card
 const EventCard = ({ event, onBook, isFavorite, onToggleFavorite, index }) => {
   const eventDate = new Date(event.date);
   const isUpcoming = isAfter(eventDate, new Date());
@@ -62,110 +175,83 @@ const EventCard = ({ event, onBook, isFavorite, onToggleFavorite, index }) => {
       initial="initial"
       animate="animate"
       exit="exit"
-      whileHover={{ y: -8 }}
+      whileHover={{ y: -8, scale: 1.01 }}
       transition={{ duration: 0.3, delay: index * 0.05 }}
       className="group relative bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-2xl transition-all duration-300"
     >
-      {/* Gradient border on hover */}
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl -z-10" />
-      
-      <div className="relative bg-white rounded-2xl h-full">
-        {/* Event Image/Header */}
-        <div className="relative h-52 overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-600/90 to-indigo-700/90 z-10" />
-          <div className="absolute inset-0 bg-black/20 z-20" />
-          
-          {/* Decorative pattern */}
-          <div className="absolute inset-0 opacity-20 z-0">
-            <div className="absolute top-0 -right-10 w-40 h-40 bg-white rounded-full blur-3xl" />
-            <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-white rounded-full blur-3xl" />
-          </div>
+      <div className="relative h-48 overflow-hidden">
+        <img 
+          src={event.image || "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600"} 
+          alt={event.name}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+        
+        {/* Favorite Button */}
+        <button
+          onClick={() => onToggleFavorite(event.id)}
+          className="absolute top-3 right-3 p-2.5 bg-white/90 backdrop-blur-sm rounded-full hover:bg-white transition-all duration-200 hover:scale-110 z-10"
+        >
+          {isFavorite ? (
+            <HeartSolid className="w-5 h-5 text-red-500" />
+          ) : (
+            <HeartIcon className="w-5 h-5 text-gray-700" />
+          )}
+        </button>
 
-          <div className="relative z-30 text-white text-center px-6 py-8">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <p className="text-xs uppercase tracking-[0.25em] text-blue-200 mb-3">
-                {isThisWeek ? "🔥 This Week" : isUpcoming ? "Upcoming" : "Past Event"}
-              </p>
-              <h3 className="text-2xl font-bold mb-2 line-clamp-2">{event.name}</h3>
-              <p className="text-sm text-blue-100">{event.venue}</p>
-            </motion.div>
-          </div>
-
-          <button
-            onClick={() => onToggleFavorite(event.id)}
-            className="absolute top-3 right-3 z-40 p-2.5 bg-white/90 backdrop-blur-sm rounded-full hover:bg-white transition-all duration-200 hover:scale-110"
-          >
-            {isFavorite ? (
-              <HeartSolid className="w-5 h-5 text-red-500" />
-            ) : (
-              <HeartIcon className="w-5 h-5 text-gray-700" />
-            )}
-          </button>
-
+        {/* Status Badges */}
+        <div className="absolute bottom-3 left-3 flex flex-wrap gap-2 z-10">
           {isThisWeek && isUpcoming && (
-            <div className="absolute top-3 left-3 z-40 px-2 py-1 bg-green-500 text-white text-xs font-semibold rounded-lg">
+            <span className="px-3 py-1 bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-xs font-bold rounded-full flex items-center gap-1">
+              <FireIcon className="w-3 h-3" />
               {daysUntil === 0 ? "Today" : `${daysUntil}d left`}
-            </div>
+            </span>
+          )}
+          {event.ticket_prices?.[0]?.price < 500 && (
+            <span className="px-3 py-1 bg-emerald-500 text-white text-xs font-bold rounded-full">
+              Budget
+            </span>
           )}
         </div>
 
-        <div className="p-6">
-          <div className="flex flex-wrap gap-3 text-sm text-gray-600 mb-4">
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-lg">
-              <CalendarIcon className="w-4 h-4 text-blue-600" />
-              <span>{format(eventDate, "MMM dd, yyyy")}</span>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-lg">
-              <ClockIcon className="w-4 h-4 text-blue-600" />
-              <span>{format(eventDate, "h:mm a")}</span>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-gray-50 rounded-lg">
-              <MapPinIcon className="w-4 h-4 text-blue-600" />
-              <span className="truncate max-w-[120px]">{event.venue}</span>
-            </div>
+        {/* Event Title Overlay */}
+        <div className="absolute bottom-3 left-3 right-24 z-10">
+          <h3 className="text-lg font-bold text-white line-clamp-1">{event.name}</h3>
+          <p className="text-xs text-white/80 line-clamp-1">{event.venue}</p>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <div className="flex flex-wrap gap-2 text-xs text-gray-500 mb-3">
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 rounded-lg">
+            <CalendarIcon className="w-3 h-3 text-blue-600" />
+            {format(eventDate, "MMM dd")}
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 rounded-lg">
+            <ClockIcon className="w-3 h-3 text-blue-600" />
+            {format(eventDate, "h:mm a")}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-gray-500">Starting from</p>
+            <p className="text-xl font-bold text-gray-900">
+              Ksh {event.ticket_prices?.[0]?.price?.toLocaleString() || "0"}
+            </p>
           </div>
-
-          <p className="text-gray-600 text-sm mb-6 line-clamp-2">
-            {event.description}
-          </p>
-
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-xs text-gray-500">Starting from</p>
-              <p className="text-xl font-bold text-gray-900">
-                Ksh {event.ticket_prices?.[0]?.price?.toLocaleString() || "0"}
-              </p>
-            </div>
-            {event.ticket_prices?.length > 1 && (
-              <div className="text-xs text-gray-500">
-                +{event.ticket_prices.length - 1} more tiers
-              </div>
-            )}
-          </div>
-
           <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => onBook(event)}
             disabled={!isUpcoming}
-            className={`w-full py-3.5 px-4 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+            className={`px-5 py-2.5 rounded-xl font-semibold transition-all ${
               isUpcoming
                 ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-lg"
                 : "bg-gray-100 text-gray-400 cursor-not-allowed"
             }`}
           >
-            {isUpcoming ? (
-              <>
-                Book Now
-                <ArrowRightIcon className="w-4 h-4" />
-              </>
-            ) : (
-              "Event Passed"
-            )}
+            {isUpcoming ? "Book Now" : "Passed"}
           </motion.button>
         </div>
       </div>
@@ -173,6 +259,76 @@ const EventCard = ({ event, onBook, isFavorite, onToggleFavorite, index }) => {
   );
 };
 
+// Ticket Card
+const TicketCard = ({ ticket, onViewQR }) => {
+  const eventDate = new Date(ticket.event?.date || Date.now());
+  const isPast = !isAfter(eventDate, new Date());
+  const isToday = isToday(eventDate);
+
+  return (
+    <motion.div
+      variants={fadeInUp}
+      whileHover={{ y: -4 }}
+      className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300"
+    >
+      <div className="relative bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+        <div className="relative flex items-start justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-white">{ticket.event?.name || "Event"}</h3>
+            <p className="text-sm text-blue-100 mt-1">{ticket.ticket_type}</p>
+          </div>
+          <span
+            className={`px-3 py-1 rounded-full text-xs font-semibold ${
+              isPast
+                ? "bg-gray-200 text-gray-700"
+                : ticket.mpesa_status === "confirmed"
+                ? "bg-emerald-500 text-white"
+                : "bg-amber-500 text-white"
+            }`}
+          >
+            {isPast ? "Past" : ticket.mpesa_status === "confirmed" ? "✓ Confirmed" : "Pending"}
+          </span>
+        </div>
+      </div>
+
+      <div className="p-5">
+        <div className="space-y-2 text-sm mb-4">
+          <div className="flex items-center gap-3 text-gray-600">
+            <CalendarIcon className="w-4 h-4 text-blue-600" />
+            <span>
+              {format(eventDate, "EEEE, MMMM dd, yyyy")}
+              {isToday && <span className="ml-2 text-emerald-600 font-semibold">• Today</span>}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 text-gray-600">
+            <MapPinIcon className="w-4 h-4 text-blue-600" />
+            <span>{ticket.event?.venue || "Venue"}</span>
+          </div>
+          <div className="flex items-center gap-3 text-gray-600">
+            <CreditCardIcon className="w-4 h-4 text-blue-600" />
+            <span className="font-semibold text-gray-900">
+              Ksh {ticket.price?.toLocaleString() || "0"}
+            </span>
+          </div>
+        </div>
+
+        {ticket.mpesa_status === "confirmed" && ticket.qr_code && (
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onViewQR(ticket)}
+            className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
+          >
+            View QR Code
+          </motion.button>
+        )}
+      </div>
+    </motion.div>
+  );
+};
+
+// Booking Modal
 const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }) => {
   const [quantity, setQuantity] = useState(1);
   const [ticketType, setTicketType] = useState("");
@@ -210,13 +366,13 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
           onClick={onClose}
         >
           <motion.div
-            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            exit={{ scale: 0.9, opacity: 0, y: 20 }}
             onClick={(e) => e.stopPropagation()}
             className="bg-white rounded-3xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto"
           >
@@ -225,14 +381,12 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                 <h3 className="text-2xl font-bold text-gray-900">Book Tickets</h3>
                 <p className="text-sm text-gray-500 mt-1">Secure your spot</p>
               </div>
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
+              <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition"
+                className="p-2 text-gray-400 hover:text-gray-600 transition rounded-xl hover:bg-gray-100"
               >
                 <XMarkIcon className="w-6 h-6" />
-              </motion.button>
+              </button>
             </div>
 
             <div className="p-6 space-y-6">
@@ -289,32 +443,26 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                 <label className="block text-sm font-semibold text-gray-900 mb-3">
                   Number of Tickets
                 </label>
-                <div className="flex items-center gap-4 p-3 border border-gray-200 rounded-xl w-fit">
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
+                <div className="flex items-center gap-4">
+                  <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-10 h-10 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+                    className="w-10 h-10 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition text-xl font-bold"
                   >
                     −
-                  </motion.button>
-                  <span className="text-xl font-semibold w-8 text-center">{quantity}</span>
-                  <motion.button
-                    whileTap={{ scale: 0.9 }}
+                  </button>
+                  <span className="text-2xl font-bold w-12 text-center">{quantity}</span>
+                  <button
                     onClick={() => setQuantity(quantity + 1)}
-                    className="w-10 h-10 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+                    className="w-10 h-10 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition text-xl font-bold"
                   >
                     +
-                  </motion.button>
+                  </button>
                 </div>
               </div>
 
               {/* Guest Info */}
               {!currentUser && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="space-y-4"
-                >
+                <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-2">
                       Full Name
@@ -351,7 +499,7 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                     />
                   </div>
-                </motion.div>
+                </div>
               )}
 
               {/* Price Summary */}
@@ -361,10 +509,6 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                   <span className="font-semibold text-gray-900">
                     Ksh {totalPrice.toLocaleString()}
                   </span>
-                </div>
-                <div className="flex justify-between items-center text-sm text-gray-500">
-                  <span>Processing fee</span>
-                  <span>Ksh 0</span>
                 </div>
               </div>
 
@@ -378,25 +522,19 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                 />
                 <span className="text-sm text-gray-600">
                   I agree to the{" "}
-                  <button className="text-blue-600 hover:underline">
-                    terms and conditions
-                  </button>
+                  <button className="text-blue-600 hover:underline">terms and conditions</button>
                 </span>
               </label>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+              <div className="grid grid-cols-2 gap-3">
+                <button
                   onClick={onClose}
                   className="py-3.5 px-4 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition"
                 >
                   Cancel
-                </motion.button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                </button>
+                <button
                   onClick={() => onSubmit(ticketType, quantity, { fullName, email, phone, terms })}
                   disabled={loading || !ticketType || !terms}
                   className="py-3.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -409,7 +547,7 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
                   ) : (
                     `Pay Ksh ${totalPrice.toLocaleString()}`
                   )}
-                </motion.button>
+                </button>
               </div>
             </div>
           </motion.div>
@@ -419,79 +557,7 @@ const BookingModal = ({ isOpen, event, onClose, onSubmit, loading, currentUser }
   );
 };
 
-const TicketCard = ({ ticket, onViewQR }) => {
-  const eventDate = new Date(ticket.event?.date || Date.now());
-  const isPast = !isAfter(eventDate, new Date());
-  const isToday = isToday(eventDate);
-
-  return (
-    <motion.div
-      variants={fadeInUp}
-      whileHover={{ y: -4 }}
-      className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300"
-    >
-      <div className="relative bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
-        <div className="relative">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-white">{ticket.event?.name || "Event"}</h3>
-              <p className="text-sm text-blue-100 mt-1">{ticket.ticket_type}</p>
-            </div>
-            <span
-              className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                isPast
-                  ? "bg-gray-200 text-gray-700"
-                  : ticket.mpesa_status === "confirmed"
-                  ? "bg-green-500 text-white"
-                  : "bg-yellow-500 text-white"
-              }`}
-            >
-              {isPast ? "Past" : ticket.mpesa_status === "confirmed" ? "Confirmed" : "Pending"}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-6">
-        <div className="space-y-3 text-sm mb-6">
-          <div className="flex items-center gap-3 text-gray-600">
-            <CalendarIcon className="w-4 h-4 text-blue-600" />
-            <span>
-              {format(eventDate, "EEEE, MMMM dd, yyyy")}
-              {isToday && <span className="ml-2 text-green-600 font-semibold">• Today</span>}
-            </span>
-          </div>
-          <div className="flex items-center gap-3 text-gray-600">
-            <ClockIcon className="w-4 h-4 text-blue-600" />
-            <span>{format(eventDate, "h:mm a")}</span>
-          </div>
-          <div className="flex items-center gap-3 text-gray-600">
-            <MapPinIcon className="w-4 h-4 text-blue-600" />
-            <span>{ticket.event?.venue || "Venue"}</span>
-          </div>
-          <div className="flex items-center gap-3 text-gray-600">
-            <CreditCardIcon className="w-4 h-4 text-blue-600" />
-            <span className="font-semibold text-gray-900">
-              Ksh {ticket.price?.toLocaleString() || "0"}
-            </span>
-          </div>
-        </div>
-
-        {ticket.mpesa_status === "confirmed" && ticket.qr_code && (
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => onViewQR(ticket)}
-            className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-semibold hover:shadow-lg transition"
-          >
-            View QR Code
-          </motion.button>
-        )}
-      </div>
-    </motion.div>
-  );
-};
+// ========== MAIN COMPONENT ==========
 
 export default function UserDashboard() {
   const { data: session, status } = useSession();
@@ -510,6 +576,14 @@ export default function UserDashboard() {
   const [showQRModal, setShowQRModal] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [stats, setStats] = useState({ totalEvents: 0, upcomingTickets: 0, favoritesCount: 0 });
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  // Handle scroll for header effect
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const fetchEvents = async () => {
     try {
@@ -531,11 +605,11 @@ export default function UserDashboard() {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      if (session?.accessToken) {
+      if (session?.user?.accessToken) {
         const ticketsRes = await fetch(`${API_URL}/user/tickets`, {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${session.accessToken}`,
+            Authorization: `Bearer ${session.user.accessToken}`,
           },
         });
         if (ticketsRes.ok) {
@@ -598,7 +672,7 @@ export default function UserDashboard() {
     if (status !== "loading") {
       const debounce = setTimeout(() => {
         fetchEvents();
-      }, 250);
+      }, 300);
       return () => clearTimeout(debounce);
     }
   }, [searchTerm, status]);
@@ -652,8 +726,8 @@ export default function UserDashboard() {
       const headers = {
         "Content-Type": "application/json",
       };
-      if (session?.accessToken) {
-        headers.Authorization = `Bearer ${session.accessToken}`;
+      if (session?.user?.accessToken) {
+        headers.Authorization = `Bearer ${session.user.accessToken}`;
       }
 
       const response = await fetch(`${API_URL}/tickets`, {
@@ -691,7 +765,7 @@ export default function UserDashboard() {
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <motion.div
             animate={{ rotate: 360 }}
@@ -712,37 +786,41 @@ export default function UserDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50">
+    <div className="min-h-screen">
+      <GradientBackground />
+
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-200">
+      <motion.header
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        className={`sticky top-0 z-40 transition-all duration-300 ${
+          isScrolled ? "bg-white/80 backdrop-blur-xl shadow-sm" : "bg-transparent"
+        }`}
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <motion.div
                 whileHover={{ scale: 1.05 }}
-                className="relative"
+                className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg"
               >
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <span className="text-white font-bold text-xl">F</span>
-                </div>
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                <span className="text-white font-bold text-lg">F</span>
               </motion.div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                   Flex-It
                 </h1>
-                <p className="text-xs text-gray-500">Your premier event booking platform</p>
+                <p className="text-xs text-gray-500 hidden sm:block">Book amazing events</p>
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900 flex items-center justify-end gap-2">
-                  <UserCircleIcon className="w-4 h-4 text-blue-600" />
-                  {session?.user?.name || "Guest User"}
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-medium text-gray-900">
+                  {session?.user?.name || "Guest"}
                 </p>
                 <p className="text-xs text-gray-500">
-                  {session?.user ? `${session.user.email} • Member` : "Guest explorer"}
+                  {session?.user ? "Member" : "Guest explorer"}
                 </p>
               </div>
               {session?.user ? (
@@ -767,7 +845,7 @@ export default function UserDashboard() {
             </div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Alerts */}
@@ -777,16 +855,13 @@ export default function UserDashboard() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="mb-6 bg-gradient-to-r from-red-50 to-red-100 border border-red-200 rounded-2xl p-4 flex items-start gap-3"
+              className="mb-6 bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3"
             >
               <ExclamationCircleIcon className="w-5 h-5 text-red-600 mt-0.5" />
               <div className="flex-1">
                 <p className="text-red-800 font-medium">{error}</p>
               </div>
-              <button
-                onClick={() => setError("")}
-                className="text-red-600 hover:text-red-700 transition"
-              >
+              <button onClick={() => setError("")} className="text-red-600 hover:text-red-700">
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </motion.div>
@@ -797,125 +872,118 @@ export default function UserDashboard() {
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="mb-6 bg-gradient-to-r from-emerald-50 to-green-100 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3"
+              className="mb-6 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-start gap-3"
             >
               <CheckCircleIcon className="w-5 h-5 text-emerald-600 mt-0.5" />
               <div className="flex-1">
                 <p className="text-emerald-800 font-medium">{success}</p>
               </div>
-              <button
-                onClick={() => setSuccess("")}
-                className="text-emerald-600 hover:text-emerald-700 transition"
-              >
+              <button onClick={() => setSuccess("")} className="text-emerald-600 hover:text-emerald-700">
                 <XMarkIcon className="w-5 h-5" />
               </button>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Hero Section */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-12 rounded-3xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 p-8 md:p-12 text-white shadow-2xl relative overflow-hidden"
-        >
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute top-0 -right-20 w-64 h-64 bg-white rounded-full blur-3xl" />
-            <div className="absolute -bottom-32 -left-20 w-80 h-80 bg-white rounded-full blur-3xl" />
-          </div>
-          <div className="relative max-w-3xl">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring" }}
-              className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm mb-4"
-            >
-              <SparklesIcon className="w-4 h-4" />
-              <span>Guest friendly experience</span>
-            </motion.div>
-            <motion.h2
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-4xl md:text-5xl font-bold mb-4"
-            >
-              Discover events and book tickets without logging in
-            </motion.h2>
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="text-base text-blue-100 max-w-2xl"
-            >
-              Browse today's events, reserve your seat, and complete payment instantly.
-              Create an account later to keep your ticket history.
-            </motion.p>
-          </div>
-        </motion.section>
+        {/* Greeting Banner */}
+        <GreetingBanner user={session?.user} stats={stats} />
 
-        {/* Stats Bar */}
+        {/* Stats */}
         {session?.user && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mb-8 grid grid-cols-2 md:grid-cols-4 gap-4"
+            className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8"
           >
-            <div className="bg-white rounded-2xl p-4 border border-gray-200">
-              <p className="text-2xl font-bold text-gray-900">{stats.totalEvents}</p>
-              <p className="text-sm text-gray-500">Total Events</p>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-gray-200">
-              <p className="text-2xl font-bold text-gray-900">{stats.upcomingTickets}</p>
-              <p className="text-sm text-gray-500">Upcoming Tickets</p>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-gray-200">
-              <p className="text-2xl font-bold text-gray-900">{stats.favoritesCount}</p>
-              <p className="text-sm text-gray-500">Favorite Events</p>
-            </div>
-            <div className="bg-white rounded-2xl p-4 border border-gray-200">
-              <p className="text-2xl font-bold text-gray-900">{userTickets.length}</p>
-              <p className="text-sm text-gray-500">Total Tickets</p>
-            </div>
+            <StatsCard
+              icon={CalendarIcon}
+              label="Total Events"
+              value={stats.totalEvents}
+              color="blue"
+            />
+            <StatsCard
+              icon={TicketIcon}
+              label="Upcoming Tickets"
+              value={stats.upcomingTickets}
+              color="purple"
+            />
+            <StatsCard
+              icon={HeartIcon}
+              label="Favorites"
+              value={stats.favoritesCount}
+              color="pink"
+            />
+            <StatsCard
+              icon={TicketIcon}
+              label="Total Tickets"
+              value={userTickets.length}
+              color="green"
+              subtitle="All time"
+            />
           </motion.div>
         )}
 
-        {/* Tab Navigation */}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-8">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Your Event Dashboard</h2>
-            <p className="text-sm text-gray-500 mt-1">
-              Explore upcoming shows, register as a guest, or manage your tickets
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {["events", "tickets", "favorites"].map((tab) => (
-              <motion.button
-                key={tab}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setActiveTab(tab)}
-                className={`rounded-xl px-5 py-2.5 text-sm font-medium transition-all ${
-                  activeTab === tab
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
-                    : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                {tab === "events" && "Browse Events"}
-                {tab === "tickets" && "My Tickets"}
-                {tab === "favorites" && "Favorites"}
-              </motion.button>
-            ))}
-          </div>
-        </div>
+        {/* Quick Actions */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="flex flex-wrap gap-3 mt-8"
+        >
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setActiveTab("events")}
+            className={`px-6 py-3 rounded-2xl font-medium transition-all ${
+              activeTab === "events"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
+                : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <HomeIcon className="w-5 h-5" />
+              Browse Events
+            </span>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setActiveTab("tickets")}
+            className={`px-6 py-3 rounded-2xl font-medium transition-all ${
+              activeTab === "tickets"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
+                : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <TicketIcon className="w-5 h-5" />
+              My Tickets
+            </span>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setActiveTab("favorites")}
+            className={`px-6 py-3 rounded-2xl font-medium transition-all ${
+              activeTab === "favorites"
+                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md"
+                : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <HeartIcon className="w-5 h-5" />
+              Favorites
+            </span>
+          </motion.button>
+        </motion.div>
 
-        {/* Search Bar - Only for events tab */}
+        {/* Search Bar */}
         {activeTab === "events" && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
+            className="mt-8"
           >
             <div className="relative">
               <MagnifyingGlassIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -924,13 +992,13 @@ export default function UserDashboard() {
                 placeholder="Search events by name, venue, or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-white"
+                className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition bg-white/80 backdrop-blur-sm"
               />
             </div>
           </motion.div>
         )}
 
-        {/* Content Sections */}
+        {/* Content */}
         <AnimatePresence mode="wait">
           {activeTab === "events" && (
             <motion.div
@@ -939,7 +1007,7 @@ export default function UserDashboard() {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="space-y-6"
+              className="mt-8"
             >
               {filteredEvents.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -958,7 +1026,7 @@ export default function UserDashboard() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-center py-16 bg-white rounded-3xl border border-gray-200"
+                  className="text-center py-16 bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-200"
                 >
                   <CalendarIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-600 text-lg">
@@ -984,7 +1052,7 @@ export default function UserDashboard() {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="space-y-6"
+              className="mt-8"
             >
               {session?.user ? (
                 userTickets.length > 0 ? (
@@ -1004,7 +1072,7 @@ export default function UserDashboard() {
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="text-center py-16 bg-white rounded-3xl border border-gray-200"
+                    className="text-center py-16 bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-200"
                   >
                     <TicketIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-600 text-lg mb-4">You haven't booked any tickets yet.</p>
@@ -1023,7 +1091,7 @@ export default function UserDashboard() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-center py-16 bg-white rounded-3xl border border-gray-200"
+                  className="text-center py-16 bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-200"
                 >
                   <TicketIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-600 text-lg mb-4">Sign in to view your ticket history and manage your bookings.</p>
@@ -1048,7 +1116,7 @@ export default function UserDashboard() {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="space-y-6"
+              className="mt-8"
             >
               {events.filter((e) => favorites.includes(e.id)).length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -1069,7 +1137,7 @@ export default function UserDashboard() {
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="text-center py-16 bg-white rounded-3xl border border-gray-200"
+                  className="text-center py-16 bg-white/80 backdrop-blur-sm rounded-3xl border border-gray-200"
                 >
                   <HeartIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-600 text-lg mb-4">
@@ -1111,16 +1179,16 @@ export default function UserDashboard() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => {
               setShowQRModal(false);
               setSelectedTicket(null);
             }}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
               onClick={(e) => e.stopPropagation()}
               className="bg-white rounded-3xl shadow-2xl max-w-md w-full"
             >
@@ -1132,7 +1200,7 @@ export default function UserDashboard() {
                       setShowQRModal(false);
                       setSelectedTicket(null);
                     }}
-                    className="text-gray-400 hover:text-gray-600 transition"
+                    className="p-2 text-gray-400 hover:text-gray-600 transition rounded-xl hover:bg-gray-100"
                   >
                     <XMarkIcon className="w-6 h-6" />
                   </button>
@@ -1168,9 +1236,7 @@ export default function UserDashboard() {
               </div>
 
               <div className="p-6 border-t border-gray-200">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                <button
                   onClick={() => {
                     setShowQRModal(false);
                     setSelectedTicket(null);
@@ -1178,7 +1244,7 @@ export default function UserDashboard() {
                   className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold hover:shadow-lg transition"
                 >
                   Close
-                </motion.button>
+                </button>
               </div>
             </motion.div>
           </motion.div>
