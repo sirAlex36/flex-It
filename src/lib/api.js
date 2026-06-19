@@ -1,44 +1,104 @@
 import { getSession } from "next-auth/react";
 
 // API utility functions for backend communication
-
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
 
 export async function apiCall(endpoint, options = {}, token = null) {
-  // Try to get token from options.headers.Authorization first, then from parameter, then from NextAuth session/localStorage
+  // Try to get token from options.headers.Authorization first, then from parameter, then from NextAuth session
   let authToken = token;
+  
   if (options.headers?.Authorization) {
     authToken = options.headers.Authorization.replace("Bearer ", "");
   }
 
+  // ✅ FIX: Get token from session correctly
   if (!authToken && typeof window !== "undefined") {
-    const session = await getSession();
-    authToken = session?.accessToken || localStorage.getItem("token");
+    try {
+      const session = await getSession();
+      // ✅ CORRECT: Token is in session.user.accessToken
+      authToken = session?.user?.accessToken || localStorage.getItem("token");
+      
+      // Debug: Log if token is found
+      if (authToken) {
+        console.log("✅ Token found in session");
+      } else {
+        console.warn("⚠️ No token found in session");
+      }
+    } catch (error) {
+      console.error("Error getting session:", error);
+    }
   }
 
   const headers = {
     "Content-Type": "application/json",
+    "Accept": "application/json",
     ...options.headers,
   };
 
   if (authToken) {
     headers.Authorization = `Bearer ${authToken}`;
+  } else {
+    console.warn(`⚠️ No auth token available for ${endpoint}`);
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: `API Error: ${response.status}` }));
-    throw new Error(error.error || `API Error: ${response.status}`);
+    // ✅ Handle 401 specifically
+    if (response.status === 401) {
+      console.error("❌ Unauthorized request to:", endpoint);
+      // Clear invalid token
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("token");
+      }
+      
+      // Try to refresh session or redirect to login
+      if (typeof window !== "undefined" && !endpoint.includes("/login")) {
+        // You might want to redirect to login here
+        // window.location.href = "/login";
+      }
+      
+      throw new Error("Session expired. Please login again.");
+    }
+
+    if (!response.ok) {
+      const contentType = response.headers.get("content-type");
+      let errorMessage = `API Error: ${response.status}`;
+      
+      if (contentType && contentType.includes("application/json")) {
+        try {
+          const error = await response.json();
+          errorMessage = error.error || error.message || errorMessage;
+        } catch (parseError) {
+          // If JSON parsing fails, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+      } else {
+        const text = await response.text();
+        errorMessage = text || errorMessage;
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    // Handle empty responses
+    const contentLength = response.headers.get("content-length");
+    if (contentLength === "0") {
+      return null;
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`❌ API call failed for ${endpoint}:`, error.message);
+    throw error;
   }
-
-  return await response.json();
 }
 
-// Events
+// ============ EVENTS ============
+
 export async function getEvents(filters = {}) {
   const params = new URLSearchParams();
   
@@ -77,7 +137,8 @@ export async function deleteEvent(id) {
   });
 }
 
-// Organiser event management
+// ============ ORGANISER ============
+
 export async function getOrganizerDashboardAnalytics(token = null) {
   return apiCall("/organiser/dashboard-analytics", { method: "GET" }, token);
 }
@@ -114,7 +175,8 @@ export async function getEventTickets(eventId, page = 1, perPage = 50, status = 
   return apiCall(url, { method: "GET" }, token);
 }
 
-// Tickets
+// ============ TICKETS ============
+
 export async function getTickets() {
   return apiCall("/tickets");
 }
@@ -131,7 +193,8 @@ export async function getEventAvailability(eventId) {
   return apiCall(`/events/${eventId}/availability`);
 }
 
-// Transactions & Payments
+// ============ TRANSACTIONS & PAYMENTS ============
+
 export async function getTransactions(ticketId) {
   return apiCall(`/transactions/${ticketId}`);
 }
@@ -143,7 +206,8 @@ export async function initiatePayment(data) {
   });
 }
 
-// Users
+// ============ USERS ============
+
 export async function getUsers() {
   return apiCall("/users");
 }
@@ -300,4 +364,3 @@ export async function getRevenueTrends(days = 30) {
 export async function getUserMetrics(days = 30) {
   return apiCall(`/analytics/user-metrics?days=${days}`);
 }
-
