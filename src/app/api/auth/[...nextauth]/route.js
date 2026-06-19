@@ -2,7 +2,12 @@ import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { jwtDecode } from "jwt-decode";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+if (!API_URL) {
+  throw new Error("NEXT_PUBLIC_API_URL environment variable is not set");
+}
 
 const authOptions = {
   providers: [
@@ -63,7 +68,6 @@ const authOptions = {
 
           const payload = jwtDecode(data.access_token);
 
-          //  RETURN USER OBJECT WITH ROLE
           const user = {
             id: payload.sub || data.user?.id || credentials.email,
             email: credentials.email,
@@ -89,18 +93,16 @@ const authOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 
-  
+  //  Add proper secret handling
+  secret: process.env.NEXTAUTH_SECRET,
+
   pages: {
     signIn: "/login",
     error: "/login",
-    signOut: "/login",
   },
 
-  //  CALBACKS FOR REDIRECT
   callbacks: {
-    // Handle JWT token
-    async jwt({ token, user, account, profile, isNewUser }) {
-      // When user signs in, add user data to token
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.role = user.role;
@@ -111,9 +113,7 @@ const authOptions = {
       return token;
     },
 
-    // Handle session data
     async session({ session, token }) {
-      // Pass token data to session
       session.user = {
         id: token.id,
         role: token.role,
@@ -124,22 +124,20 @@ const authOptions = {
       return session;
     },
 
-    // ✅ HANDLE REDIRECT AFTER SIGNIN
     async redirect({ url, baseUrl }) {
-      // If the URL is relative, redirect to the base URL
+      // Allow relative URLs
       if (url.startsWith("/")) {
         return `${baseUrl}${url}`;
       }
-      // If the URL is the same origin, redirect to it
+      // Allow same-origin URLs
       else if (new URL(url).origin === baseUrl) {
         return url;
       }
-      // Default redirect to dashboard
       return baseUrl;
     },
   },
 
-  //  COOKIE CONFIGURATION FOR PRODUCTION
+  //  Add proper cookie configuration
   cookies: {
     sessionToken: {
       name: process.env.NODE_ENV === "production" 
@@ -154,8 +152,7 @@ const authOptions = {
     },
   },
 
-  secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === "development",
+  
 };
 
 const handler = NextAuth(authOptions);
