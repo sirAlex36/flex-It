@@ -6,7 +6,6 @@ import EventsContent from './EventsContent';
 
 // Force dynamic rendering to avoid prerendering issues with useSearchParams
 export const dynamic = 'force-dynamic';
-export const revalidate = 0;
 
 export default function EventPage() {
   return (

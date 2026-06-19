@@ -36,7 +36,7 @@ export default function EventsContent() {
 
   const handleSearch = (term) => {
     setSearchTerm(term);
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchParams?.toString());
     if (term) {
       params.set('search', term);
     } else {
