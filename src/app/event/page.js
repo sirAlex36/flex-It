@@ -4,9 +4,6 @@
 import { Suspense } from 'react';
 import EventsContent from './EventsContent';
 
-// Force dynamic rendering to avoid prerendering issues with useSearchParams
-
-
 export default function EventPage() {
   return (
     <Suspense fallback={

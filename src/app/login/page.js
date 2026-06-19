@@ -13,18 +13,22 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ HANDLE REDIRECT AFTER SESSION IS READY
+  //  HANDLE REDIRECT BASED ON ROLE
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role) {
       const role = session.user.role;
+      console.log("User role detected:", role);
 
-      if (role === "admin") {
-        router.replace("/dashboard/admin");
-      } else if (role === "organiser") {
-        router.replace("/dashboard/organiser");
-      } else {
-        router.replace("/dashboard/user");
-      }
+      // Role-based redirect
+      const redirectPaths = {
+        admin: "/dashboard/admin",
+        organiser: "/dashboard/organiser",
+        user: "/dashboard/user",
+      };
+
+      const redirectPath = redirectPaths[role] || "/dashboard/user";
+      console.log("Redirecting to:", redirectPath);
+      router.replace(redirectPath);
     }
   }, [status, session, router]);
 
@@ -34,35 +38,42 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      console.log("Attempting login with email:", email);
+      
+      //  SIGN IN WITH REDIRECT: FALSE
       const result = await signIn("credentials", {
         email,
         password,
-        redirect: false,
+        redirect: false, 
       });
 
+
       if (result?.error) {
-        setError(result.error);
+        setError(result.error || "Invalid credentials");
         setLoading(false);
         return;
       }
 
-      if (result?.ok) {
-        console.log("Login successful - waiting for session update...");
-        // ❌ NO REDIRECT HERE (IMPORTANT FIX)
-      }
+     
+      setLoading(false);
+      
     } catch (err) {
       console.error("Login error:", err);
-      setError("Something went wrong. Try again.");
-    } finally {
+      setError(err.message || "Something went wrong. Try again.");
       setLoading(false);
     }
   };
 
-  // 🔄 LOADING SESSION CHECK
-  if (status === "loading") {
+  //  LOADING STATE
+  if (status === "loading" || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p>Checking session...</p>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">
+            {loading ? "Signing you in..." : "Checking session..."}
+          </p>
+        </div>
       </div>
     );
   }
@@ -70,45 +81,53 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-md">
-
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold">Welcome Back</h2>
           <p className="text-gray-600">Sign in to your account</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 bg-white p-6 rounded-xl shadow">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email
+            </label>
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+              disabled={loading}
+            />
+          </div>
 
-          {/* EMAIL */}
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 border rounded"
-            required
-          />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <input
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+              disabled={loading}
+            />
+          </div>
 
-          {/* PASSWORD */}
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3 border rounded"
-            required
-          />
-
-          {/* ERROR */}
           {error && (
-            <p className="text-red-500 text-sm">{error}</p>
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded">
+              <p className="text-sm">{error}</p>
+            </div>
           )}
 
-          {/* BUTTON */}
           <button
             type="submit"
             disabled={loading}
-            className={`w-full p-3 text-white rounded ${
-              loading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
+            className={`w-full p-3 text-white rounded transition-colors ${
+              loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
             {loading ? "Signing in..." : "Sign In"}

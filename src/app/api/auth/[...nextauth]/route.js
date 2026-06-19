@@ -3,7 +3,6 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { jwtDecode } from "jwt-decode";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
-const NEXTAUTH_URL = process.env.NEXTAUTH_URL || "https://flex-it-six.vercel.app";
 
 const authOptions = {
   providers: [
@@ -21,12 +20,13 @@ const authOptions = {
 
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 10000);
+          const timeout = setTimeout(() => controller.abort(), 15000);
 
           const response = await fetch(`${API_URL}/login`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              "Accept": "application/json",
             },
             body: JSON.stringify({
               email: credentials.email,
@@ -39,20 +39,20 @@ const authOptions = {
 
           if (!response.ok) {
             const contentType = response.headers.get("content-type");
-            let error = {};
-
+            let errorMessage = "Login failed";
+            
             if (contentType && contentType.includes("application/json")) {
               try {
-                error = await response.json();
+                const error = await response.json();
+                errorMessage = error.error || error.message || "Invalid credentials";
               } catch (parseError) {
-                error = { error: "Invalid JSON response from server" };
+                errorMessage = "Invalid response from server";
               }
             } else {
-              const text = await response.text();
-              error = { error: `Server error (${response.status}): ${response.statusText}` };
+              errorMessage = `Server error (${response.status})`;
             }
-
-            throw new Error(error.error || "Login failed");
+            
+            throw new Error(errorMessage);
           }
 
           const data = await response.json();
@@ -63,8 +63,9 @@ const authOptions = {
 
           const payload = jwtDecode(data.access_token);
 
+          //  RETURN USER OBJECT WITH ROLE
           const user = {
-            id: payload.sub || data.user?.id,
+            id: payload.sub || data.user?.id || credentials.email,
             email: credentials.email,
             name: payload.name || data.user?.name || credentials.email,
             role: payload.role || data.user?.role || "user",
@@ -73,8 +74,9 @@ const authOptions = {
 
           return user;
         } catch (error) {
+          console.error("Auth error:", error.message);
           if (error.name === "AbortError") {
-            throw new Error("Authentication request timeout");
+            throw new Error("Login request timed out. Please try again.");
           }
           throw new Error(error.message || "Authentication failed");
         }
@@ -84,39 +86,76 @@ const authOptions = {
 
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60,
-    updateAge: 24 * 60 * 60,
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 
-  jwt: {
-    secret: process.env.NEXTAUTH_SECRET || "c5d7bd68f56060e60d8c014d4f4e4d99d720d4049f0d9434ea0a710f6c7c483e",
-    maxAge: 30 * 24 * 60 * 60,
-  },
-
+  
   pages: {
     signIn: "/login",
     error: "/login",
+    signOut: "/login",
   },
 
+  //  CALBACKS FOR REDIRECT
   callbacks: {
-    async jwt({ token, user }) {
+    // Handle JWT token
+    async jwt({ token, user, account, profile, isNewUser }) {
+      // When user signs in, add user data to token
       if (user) {
+        token.id = user.id;
         token.role = user.role;
         token.accessToken = user.accessToken;
-        token.id = user.id;
+        token.email = user.email;
+        token.name = user.name;
       }
       return token;
     },
 
+    // Handle session data
     async session({ session, token }) {
-      session.user.role = token.role;
-      session.user.id = token.id;
-      session.user.accessToken = token.accessToken;
+      // Pass token data to session
+      session.user = {
+        id: token.id,
+        role: token.role,
+        accessToken: token.accessToken,
+        email: token.email || session.user.email,
+        name: token.name || session.user.name,
+      };
       return session;
-    }
+    },
+
+    // ✅ HANDLE REDIRECT AFTER SIGNIN
+    async redirect({ url, baseUrl }) {
+      // If the URL is relative, redirect to the base URL
+      if (url.startsWith("/")) {
+        return `${baseUrl}${url}`;
+      }
+      // If the URL is the same origin, redirect to it
+      else if (new URL(url).origin === baseUrl) {
+        return url;
+      }
+      // Default redirect to dashboard
+      return baseUrl;
+    },
   },
 
-  secret: process.env.NEXTAUTH_SECRET || "c5d7bd68f56060e60d8c014d4f4e4d99d720d4049f0d9434ea0a710f6c7c483e",
+  //  COOKIE CONFIGURATION FOR PRODUCTION
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "production" 
+        ? "__Secure-next-auth.session-token" 
+        : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
+
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
 };
 
 const handler = NextAuth(authOptions);
