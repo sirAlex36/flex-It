@@ -9,8 +9,8 @@ import io
 import base64
 import json
 import logging
-from app.security import QRSecurity
-from app import db
+from ..security import QRSecurity
+from .. import db
 
 logger = logging.getLogger(__name__)
 qr_security = QRSecurity()

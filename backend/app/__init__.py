@@ -1,169 +1,286 @@
 import os
+from typing import Any, cast
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy import text
-from .config import Config
 from flask_jwt_extended import JWTManager
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
-from flask_limiter import Limiter  
+from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from werkzeug.middleware.proxy_fix import ProxyFix
-
 from dotenv import load_dotenv
+
+from .config import Config
+
+
+# Load environment variables
 load_dotenv()
 
-QR_SECRET = os.getenv("QR_SECRET")
-SMTP_SERVER = os.getenv("SMTP_SERVER") 
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+
+# ============================================================
+# EXTENSIONS
+# ============================================================
 
 db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()
 bcrypt = Bcrypt()
+
+
+# ============================================================
+# REDIS / RATE LIMITING
+# ============================================================
+
 redis_url = os.getenv("REDIS_URL")
+
 limiter = Limiter(
     key_func=get_remote_address,
     storage_uri=redis_url if redis_url else "memory://"
 )
-SQLALCHEMY_ENGINE_OPTIONS = {
-    "pool_pre_ping": True,
-    "pool_recycle": 300,
-}
-config_name = os.getenv("FLASK_ENV", "production")
+
+
+# ============================================================
+# APPLICATION FACTORY
+# ============================================================
 
 def create_app():
+
     app = Flask(__name__)
-    database_url = os.getenv("DATABASE_URL")
+
+    # --------------------------------------------------------
+    # Base configuration
+    # --------------------------------------------------------
+
+    app.config.from_object(Config)
+
+    # --------------------------------------------------------
+    # Database
+    # --------------------------------------------------------
+    database_url = (
+        os.getenv("POSTGRES_URL_NON_POOLING")
+        or os.getenv("POSTGRES_URL")
+        or os.getenv("DATABASE_URL")
+    )
+
     if not database_url:
-        raise ValueError("DATABASE_URL is missing")
+        raise ValueError(
+            "No PostgreSQL connection string found. "
+            "Expected POSTGRES_URL_NON_POOLING, POSTGRES_URL, or DATABASE_URL."
+        )
 
     if database_url.startswith("postgres://"):
         database_url = database_url.replace(
-        "postgres://",
-        "postgresql://",
-        1
-    )
-    
+            "postgres://",
+            "postgresql://",
+            1
+        )
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
+        "pool_size": 5,
+        "max_overflow": 10,
     }
 
 
-    app.config.from_object(Config)
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+    # --------------------------------------------------------
+    # JWT
+    # --------------------------------------------------------
 
-    # 🔒 JWT CONFIG
     jwt_secret = os.getenv("JWT_SECRET_KEY")
-    if not jwt_secret:raise ValueError("JWT_SECRET_KEY is missing")
+
+    if not jwt_secret:
+        raise ValueError("JWT_SECRET_KEY is missing")
+
     app.config["JWT_SECRET_KEY"] = jwt_secret
     app.config["JWT_TOKEN_LOCATION"] = ["headers"]
-    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 86400 * 30  # 30 days
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 86400 * 30
     app.config["JWT_ALGORITHM"] = "HS256"
 
-    # 🔧 INIT EXTENSIONS
+    # --------------------------------------------------------
+    # Initialize extensions
+    # --------------------------------------------------------
+
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
     bcrypt.init_app(app)
-    limiter.init_app(app)  # Issue #8: Initialize rate limiter
+    limiter.init_app(app)
 
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_port=1)
-    
-    allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
-    allowed_origins_list = [
-        "https://flex-it-six.vercel.app",
-        "https://flex-it-git-main-siralex36s-projects.vercel.app",
-        "https://flex-it.onrender.com"
-    ]
-    
-    if allowed_origins_env:
-        allowed_origins_list.extend([origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()])
-    
-    # Use flask-cors to handle all CORS headers automatically
-    CORS(
-        app,
-        resources={r"/*": {
-            "origins": allowed_origins_list,
-            "supports_credentials": True,
-            "allow_headers": ["Content-Type", "Authorization"],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-            "expose_headers": ["Content-Type"],
-            "max_age": 3600
-        }}
+    # --------------------------------------------------------
+    # Reverse proxy configuration
+    # --------------------------------------------------------
+
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_proto=1,
+        x_host=1,
+        x_port=1
     )
 
-    # Issue #12: Setup structured logging
-    # from .logging_config import setup_logging
-    # setup_logging(app)
-    
-    # Issue #14, #15: Setup security middleware (HTTPS, CSRF)
+    # --------------------------------------------------------
+    # CORS
+    # --------------------------------------------------------
+
+    allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+
+    allowed_origins_list = [
+        origin.strip()
+        for origin in allowed_origins_env.split(",")
+        if origin.strip()
+    ]
+
+    # Development fallback
+    if not allowed_origins_list:
+        allowed_origins_list = [
+            "http://localhost:3000",
+            "http://localhost:5173",
+        ]
+
+    CORS(
+        app,
+        resources={
+            r"/*": {
+                "origins": allowed_origins_list,
+                "supports_credentials": True,
+                "allow_headers": [
+                    "Content-Type",
+                    "Authorization",
+                ],
+                "methods": [
+                    "GET",
+                    "POST",
+                    "PUT",
+                    "DELETE",
+                    "OPTIONS",
+                    "PATCH",
+                ],
+                "expose_headers": [
+                    "Content-Type",
+                ],
+                "max_age": 3600,
+            }
+        },
+    )
+
+    # --------------------------------------------------------
+    # Security middleware
+    # --------------------------------------------------------
+
     from .security_middleware import setup_security_middleware
+
     setup_security_middleware(app)
 
-    # 🔗 REGISTER ROUTES
+    # --------------------------------------------------------
+    # Register routes
+    # --------------------------------------------------------
+
     from .routes import main
+
     app.register_blueprint(main)
+
+    # --------------------------------------------------------
+    # Home endpoint
+    # --------------------------------------------------------
 
     @app.route("/")
     def home():
         return {
             "message": "Flex-It API running"
-         }, 200
+        }, 200
 
-    # ❌ GLOBAL ERROR HANDLERS - Ensure JSON responses
+    # --------------------------------------------------------
+    # Health check
+    # --------------------------------------------------------
+
+    @app.route("/health")
+    def health():
+
+        try:
+            db.session.execute(text("SELECT 1"))
+
+            return {
+                "status": "healthy",
+                "database": "connected"
+            }, 200
+
+        except Exception as e:
+
+            app.logger.error(
+                "Database health check failed: %s",
+                e
+            )
+
+            return {
+                "status": "unhealthy",
+                "database": "disconnected"
+            }, 500
+
+    # --------------------------------------------------------
+    # Error handlers
+    # --------------------------------------------------------
+
     @app.errorhandler(404)
     def not_found(error):
-        from flask import jsonify
-        return jsonify({"error": "Endpoint not found"}), 404
-
-    @app.errorhandler(500)
-    def internal_error(error):
-        from flask import jsonify
-        db.session.rollback()
-        print(f"❌ Internal Server Error: {error}")
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({
+            "error": "Endpoint not found"
+        }), 404
 
     @app.errorhandler(400)
     def bad_request(error):
-        from flask import jsonify
-        return jsonify({"error": str(error.description) or "Bad request"}), 400
-    
+        return jsonify({
+            "error": str(error.description)
+            if error.description
+            else "Bad request"
+        }), 400
+
+    @app.errorhandler(500)
+    def internal_error(error):
+
+        db.session.rollback()
+
+        app.logger.exception(
+            "Internal server error"
+        )
+
+        return jsonify({
+            "error": "Internal server error"
+        }), 500
+
+    # --------------------------------------------------------
+    # JWT error handlers
+    # --------------------------------------------------------
+
     @jwt.expired_token_loader
     def expired_token_callback(jwt_header, jwt_payload):
+
         return jsonify({
-        "error": "Token expired"
-    }), 401
+            "error": "Token expired"
+        }), 401
 
-
-    @jwt.invalid_token_loader
     def invalid_token_callback(error):
+
         return jsonify({
-        "error": "Invalid token"
-    }), 401
-    
-    @app.route("/health")
-    def health():
-        try:
-            db.session.execute(text("SELECT 1"))
-            return {
-            "status": "healthy",
-            "database": "connected"
-            }, 200
-        except Exception as e:
-            return {
-               "status": "unhealthy",
-               "error": str(e)
-            }, 500
-    
+            "error": "Invalid token"
+        }), 401
+
+    cast(Any, jwt).invalid_token_loader(invalid_token_callback)
+
+    # --------------------------------------------------------
+    # Secure cookies
+    # --------------------------------------------------------
+
     app.config["SESSION_COOKIE_SECURE"] = True
-    app.config["REMEMBER_COOKIE_SECURE"] = True
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
+    app.config["REMEMBER_COOKIE_SECURE"] = True
+    app.config["REMEMBER_COOKIE_HTTPONLY"] = True
+
     return app
+

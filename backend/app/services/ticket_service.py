@@ -6,8 +6,8 @@ Encapsulates ticket-related business logic
 
 import logging
 from datetime import datetime
-from app import db
-from app.models import Ticket, Event
+from .. import db
+from ..models import Ticket, Event
 
 logger = logging.getLogger(__name__)
 

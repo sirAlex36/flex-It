@@ -6,10 +6,10 @@ Issue #6, #7, #18: Scan validation logic encapsulated
 
 import logging
 from datetime import datetime
-from app import db
-from app.models import Ticket, Event, AuditLog
-from app.services.qr_service import QRService
-from app.services.ticket_service import TicketService
+from .. import db
+from ..models import Ticket, Event, AuditLog
+from .qr_service import QRService
+from .ticket_service import TicketService
 
 logger = logging.getLogger(__name__)
 

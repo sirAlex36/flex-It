@@ -8,9 +8,9 @@ Routes layer calls this, routes don't know implementation details.
 
 import logging
 from datetime import datetime
-from app import db
-from app.models import Ticket, Transaction, Event
-from app.security import QRSecurity
+from .. import db
+from ..models import Ticket, Transaction, Event
+from ..security import QRSecurity
 
 logger = logging.getLogger(__name__)
 qr_security = QRSecurity()

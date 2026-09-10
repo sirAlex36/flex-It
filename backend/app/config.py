@@ -6,6 +6,7 @@ load_dotenv()
 
 
 class Config:
+
     SECRET_KEY = os.environ["SECRET_KEY"]
     JWT_SECRET_KEY = os.environ["JWT_SECRET_KEY"]
     QR_SECRET = os.environ["QR_SECRET"]
@@ -13,38 +14,32 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     JWT_TOKEN_LOCATION = ["headers"]
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=1)
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=30)
     JWT_ALGORITHM = "HS256"
 
 
 class DevelopmentConfig(Config):
+
     DEBUG = True
     TESTING = False
+
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL",
         "postgresql://localhost/flexit_dev"
     )
+
     SQLALCHEMY_ECHO = True
 
 
 class ProductionConfig(Config):
-    database_url = os.environ["DATABASE_URL"]
 
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace(
-            "postgres://",
-            "postgresql://",
-            1
-        )
-
-    SQLALCHEMY_DATABASE_URI = database_url
     SQLALCHEMY_ECHO = False
 
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
         "pool_recycle": 300,
-        "pool_size": 10,
-        "max_overflow": 20,
+        "pool_size": 5,
+        "max_overflow": 10,
     }
 
     SESSION_COOKIE_SECURE = True
@@ -56,7 +51,11 @@ class ProductionConfig(Config):
 
 
 class TestingConfig(Config):
+
     TESTING = True
+
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+
     SECRET_KEY = "test-secret-key"
     JWT_SECRET_KEY = "test-secret-key"
+
