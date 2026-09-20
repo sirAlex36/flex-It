@@ -47,9 +47,9 @@ export default function SignUp() {
     setLoading(true);
 
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
+      const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-      const response = await fetch(`${API_URL}/users`, {
+      const response = await fetch(`${API_URL}/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -72,7 +72,7 @@ export default function SignUp() {
           localStorage.setItem("token", loginData.access_token);
 
           const decoded = jwtDecode(loginData.access_token);
-          if (decoded.sub.role === "admin") {
+          if (decoded.role === "admin") {
             router.push("/dashboard/admin");
           } else {
             router.push("/dashboard/user");

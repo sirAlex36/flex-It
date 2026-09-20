@@ -8,7 +8,7 @@ export default function EventBookingPage() {
   const eventId = params?.eventId;
   const router = useRouter();
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://flex-it.onrender.com";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
